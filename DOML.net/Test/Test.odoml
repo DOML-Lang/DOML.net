@@ -1,0 +1,12 @@
+; This is the resulting bytecode from the file given
+makespace  5                              ; Reserves 5 spaces on the stack.
+makereg    1                              ; Reserves 1 space on the register.
+new        System.Color                   ; Performs a constructor call on System.Color and pushes the new object onto the stack
+regobj     0                              ; Registers top object to index 0 after popping it off the stack
+;          Comment                        ; USER COMMENT
+push32f    0.5                            ; Pushes float 0.5 onto the stack
+push32f    0.25                           ; Pushes float 0.25 onto the stack
+push32f    1                              ; Pushes float 1 onto the stack
+pushstr    "This is a test string that is quite long I think overall it is very long lolol This is a test string that is quite long I think overall it is very long lolol This is a test string that is quite long I think overall it is very long lolol This is a test string that is quite long I think overall it is very long lolol" ; Pushes string ""This is a test string that is quite long I think overall it is very long lolol This is a test string that is quite long I think overall it is very long lolol This is a test string that is quite long I think overall it is very long lolol This is a test string that is quite long I think overall it is very long lolol"" onto the stack
+pushobj    0                              ; Pushes object in register ID: 0 onto the stack
+set        System.Color::RGB.Normalised   ; Runs the System.Color::RGB.Normalised function
