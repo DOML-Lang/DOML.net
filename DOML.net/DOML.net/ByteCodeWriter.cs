@@ -90,32 +90,10 @@ namespace DOML.ByteCode
 
             case BaseInstruction.PUSH_OBJ:
                 return $"Pushes object in register ID: {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_8I:
-                return $"Pushes signed byte {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_16I:
-                return $"Pushes short integer {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_32I:
-                return $"Pushes integer {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_64I:
+            case BaseInstruction.PUSH_INT:
                 return $"Pushes long integer {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_8U:
-                return $"Pushes unsigned byte {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_16U:
-                return $"Pushes unsigned short integer {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_32U:
-                return $"Pushes unsigned integer {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_64U:
-                return $"Pushes unsigned long integer {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_16F:
-                return $"Pushes half {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_32F:
-                return $"Pushes float {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_64F:
+            case BaseInstruction.PUSH_NUM:
                 return $"Pushes double {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_80F:
-                return $"Pushes extended precision {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_128F:
-                return $"Pushes quad {GetParameterText(instruction)} onto the stack";
             case BaseInstruction.PUSH_STR:
                 return $"Pushes string \"{GetParameterText(instruction)}\" onto the stack";
             case BaseInstruction.PUSH_CHAR:
@@ -131,9 +109,9 @@ namespace DOML.ByteCode
             case BaseInstruction.POP:
                 return $"Pops top object off the stack {GetParameterText(instruction)} time" + ((int)instruction.Parameter != 1 ? "s" : "");
 
-            case BaseInstruction.COMP_SIZE:
+            case BaseInstruction.COMP_MAX:
                 return $"Pushes true onto the stack if the max stack size is less than {GetParameterText(instruction)} else it'll push false";
-            case BaseInstruction.COMP_PTR:
+            case BaseInstruction.COMP_SIZE:
                 return $"Pushes true onto the stack if the current stack size is less than {GetParameterText(instruction)} else it'll push false";
             case BaseInstruction.COMP_REG:
                 return $"Pushes true onto the stack if the current register size is less than {GetParameterText(instruction)} else it'll push false";

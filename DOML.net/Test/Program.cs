@@ -44,7 +44,7 @@ namespace ConsoleApp1
                     }
                 };
 
-                InstructionRegister.RegisterInstruction("System.Color", InstructionRegister.RegisterType.NEW, (InterpreterRuntime runtime) =>
+                InstructionRegister.RegisterConstructor("System.Color", (InterpreterRuntime runtime) =>
                 {
                     if (!runtime.Push(new Colour(), true))
                     {
@@ -52,9 +52,9 @@ namespace ConsoleApp1
                     }
                 });
 
-                InstructionRegister.RegisterInstruction("RGB", InstructionRegister.RegisterType.SET, Set_RGB);
-                InstructionRegister.RegisterInstruction("RGB", InstructionRegister.RegisterType.GET, Get_RGB);
-                InstructionRegister.RegisterInstruction("RGB.Normalised", InstructionRegister.RegisterType.GET, (InterpreterRuntime runtime) =>
+                InstructionRegister.RegisterSetter("RGB", "System.Color", 3, Set_RGB);
+                InstructionRegister.RegisterGetter("RGB", "System.Color", 3, Get_RGB);
+                InstructionRegister.RegisterSetter("RGB.Normalised", "System.Color", 3, (InterpreterRuntime runtime) =>
                 {
                     if (runtime.Pop(out Colour result))
                         if (!runtime.Pop(out result.B) || !runtime.Pop(out result.G) || !runtime.Pop(out result.R))
@@ -63,7 +63,8 @@ namespace ConsoleApp1
 
                 Parser.GetInterpreterFromText(@"
             @ Test = System.Color ... // Comment
-            ;      .RGB(Normalised) = 0.5, 0.25, 1f, ""This is a test string that is quite long I think overall it is very long lolol This is a test string that is quite long I think overall it is very long lolol This is a test string that is quite long I think overall it is very long lolol This is a test string that is quite long I think overall it is very long lolol""
+            ;      .RGB(Normalised) = 0.5, 0.25, 0.1,
+            ;      .RGB             = Test.RGB
             ").Emit(new ByteCodeWriter(Directory.GetCurrentDirectory() + "\\Test.odoml", false), true, true);
 
                 Console.Read();

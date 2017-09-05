@@ -236,7 +236,7 @@ namespace DOML
             }
 
             // Remove any trailing '.'
-            int depth = 0;
+            int depth = -1;
             for (int i = parsed.Length - 1; i >= 0; i--)
             {
                 if (parsed[i] == '.')
@@ -244,7 +244,12 @@ namespace DOML
                 else
                     break;
             }
-            parsed.Remove(depth, parsed.Length - depth);
+
+            if (depth > -1)
+            {
+                parsed.Remove(depth, parsed.Length - depth);
+            }
+
             variableName = parsed.ToString();
 
             RemoveWhitespacesAndComments(reader);
@@ -263,13 +268,13 @@ namespace DOML
             {
                 Advance(reader, 1); // eat '=' or ','
                 RemoveWhitespacesAndComments(reader);
-                value = HandleValue(reader);
-                if (value != null && value.Value.OpCode < (byte)BaseInstruction.COUNT_OF_INSTRUCTIONS)
+                if (currentCharacter == '@' || currentCharacter == ';' || reader.Peek() <= 0)
                 {
-                    Instructions.Add(value.Value);
-                    values++;
+                    // This allows you to have a comma at the very end
+                    break;
                 }
-                else
+
+                if (ParseValue(reader, ref values) == false)
                 {
                     Log.Error("Parsing values went wrong");
                     return false;
@@ -277,6 +282,13 @@ namespace DOML
 
                 RemoveWhitespacesAndComments(reader);
             } while (currentCharacter == ',');
+
+            // If we don't have enough values - compile time error
+            if (values < InstructionRegister.SizeOf[variableName])
+            {
+                Log.Error("Too few variables.");
+                return false;
+            }
 
             Instructions.Add(new Instruction(BaseInstruction.PUSH_OBJ, objectInfoToPush.RegisterID));
             values++;
@@ -307,7 +319,7 @@ namespace DOML
             Instructions.Add(new Instruction(BaseInstruction.MAKE_REG, null)); // To be set at the end - ReserveRegisters
 
             // Parse
-            while (Advance(reader, 1))
+            while (currentCharacter == '@' || currentCharacter == ';' || Advance(reader, 1))
             {
                 // Remove whitespace/comments before first line
                 RemoveWhitespacesAndComments(reader);
@@ -340,267 +352,239 @@ namespace DOML
             return new Interpreter(Instructions);
         }
 
-        // Handles till ','
-        // Check whitespace
-        private static Instruction? HandleValue(TextReader reader)
+        private static bool ParseValue(TextReader reader, ref int values)
         {
-            object parameter = null;
-            BaseInstruction code = BaseInstruction.NOP; // Similar to 'error' instruction
-            string rep = "";
-            int furtherType = 0; // 0 is nothing, 1 is octal, 2 is hexadecimal, 3 is string, 4 is 'string' (no more bits allowed till ','!), 5 is binary
-
-            do
+            if (currentCharacter == '"')
+                // We know its a string so don't even try to handle it as something else
+                return ParseStringOrCharacter(reader, false, ref values);
+            else if (currentCharacter == '\'')
+                // We know its a character so again don't even try to handle it as something else
+                return ParseStringOrCharacter(reader, true, ref values);
+            else if (char.IsDigit(currentCharacter) || currentCharacter == '.' || currentCharacter == '-' || currentCharacter == '+' || currentCharacter == '$')
+                // We know it has to be a number, nothing else
+                return ParseNumber(reader, ref values);
+            else
             {
-                if (currentCharacter == ',' && furtherType != 3)
+                // Read till ',' and decide
+                StringBuilder builder = new StringBuilder();
+                do
+                {
+                    builder.Append(AllowedSeperators.Contains(currentCharacter) ? '.' : currentCharacter);
+                }
+                while (Advance(reader, 1) && currentCharacter != ',' && char.IsWhiteSpace(currentCharacter) == false);
+
+                string result = builder.ToString();
+                if (result == "true")
+                {
+                    Instructions.Add(new Instruction(BaseInstruction.PUSH_BOOL, true));
+                    values++;
+                    return true;
+                }
+                else if (result == "false")
+                {
+                    Instructions.Add(new Instruction(BaseInstruction.PUSH_BOOL, false));
+                    values++;
+                    return true;
+                }
+                else
+                {
+                    // Its an object
+                    if (result.Contains('.'))
+                    {
+                        string[] splitObject = result.Split('.');
+                        string callee;
+                        if (Registers.ContainsKey(splitObject[0]))
+                        {
+                            // We are referring to one of our objects
+                            CreationObjectInfo info = Registers[splitObject[0]];
+                            Instructions.Add(new Instruction(BaseInstruction.PUSH_OBJ, info.RegisterID));
+                            callee = $"get {info.ObjectType}::{result.Substring(splitObject[0].Length + 1)}";
+                        }
+                        else
+                        {
+                            // We are referring outside of one of our objects
+                            callee = $"get {result}";
+                        }
+
+                        if (InstructionRegister.Actions.ContainsKey(callee) == false)
+                        {
+                            Log.Error("Can't find action");
+                            return false;
+                        }
+
+                        Instructions.Add(new Instruction(BaseInstruction.CALL, callee));
+                        values += InstructionRegister.SizeOf[callee];
+                        return true;
+                    }
+                    else if (Registers.ContainsKey(result))
+                    {
+                        // We are passing an object
+                        Instructions.Add(new Instruction(BaseInstruction.PUSH_OBJ, Registers[result].RegisterID));
+                        values++;
+                        return true;
+                    }
+                    else
+                    {
+                        Log.Error("Doesn't exist in any registers and no call exists for it");
+                        return false;
+                    }
+                }
+            }
+        }
+
+        private static bool ParseStringOrCharacter(TextReader reader, bool character, ref int values)
+        {
+            StringBuilder builder = new StringBuilder();
+            bool escaped = false;
+            char endOn = character ? '\'' : '"';
+            // We can do it like this because we want to throw the starting string character out anyway
+            while (Advance(reader, 1))
+            {
+                if (currentCharacter == endOn && escaped == false)
                 {
                     break;
                 }
-
-                if (currentCharacter == '.')
+                else if (currentCharacter == '/' && escaped == false && reader.Peek() == endOn)
                 {
-                    if (code == BaseInstruction.NOP && furtherType == 0)
-                    {
-                        code = BaseInstruction.PUSH_32F;
-                        rep += currentCharacter;
-                    }
-                    else
-                    {
-                        Log.Error("Can't have '.' in octals/hexadecimals also can't have two '.' in floats/doubles.");
-                        return null;
-                    }
-                }
-                else if (furtherType == 1)
-                {
-                    if (currentCharacter >= '0' && currentCharacter <= '7')
-                    {
-                        rep += currentCharacter;
-                    }
-                    else
-                    {
-                        Log.Error("Only can use 0-7 for octals", true);
-                        return null;
-                    }
-                }
-                else if (furtherType == 2)
-                {
-                    if (char.IsDigit(currentCharacter) || (currentCharacter >= 'a' && currentCharacter <= 'f') || (currentCharacter >= 'A' && currentCharacter <= 'F'))
-                    {
-                        rep += currentCharacter;
-                    }
-                    else
-                    {
-                        Log.Error("Only can use 0-9 or a-f or A-F for hexadecimals", true);
-                        return null;
-                    }
-                }
-                else if (furtherType == 3)
-                {
-                    if (currentCharacter == '\\')
-                    {
-                        char next = (char)reader.Peek();
-                        if (next == '\\' || next == '"')
-                        {
-                            rep += next;
-                            Advance(reader, 1);
-                            continue;
-                        }
-                    }
-                    else if (currentCharacter == '"')
-                    {
-                        furtherType = 4;
-                        parameter = rep;
-                    }
-                    else
-                    {
-                        rep += currentCharacter;
-                    }
-                }
-                else if (furtherType == 4)
-                {
-                    if (char.IsWhiteSpace(currentCharacter) == false)
-                    {
-                        Log.Error("Ended string literal", true);
-                        return null;
-                    }
-                }
-                else if (furtherType == 5)
-                {
-                    if (currentCharacter == '0' || currentCharacter == '1')
-                    {
-                        rep += currentCharacter;
-                    }
-                    else
-                    {
-                        Log.Error("Only can use 0 or 1 for binary numbers", true);
-                        return null;
-                    }
-                }
-                else if (char.IsDigit(currentCharacter))
-                {
-                    char next = char.ToLower((char)reader.Peek());
-
-                    if (next == 'x')
-                    {
-                        // Its a hexadecimal
-                        // Keep reading till end
-                        furtherType = 2;
-                        Advance(reader, 1);
-                    }
-                    else if (next == 'o')
-                    {
-                        // Its an octal
-                        furtherType = 1;
-                        Advance(reader, 1);
-                    }
-                    else if (next == 'b')
-                    {
-                        furtherType = 5;
-                        Advance(reader, 1);
-                    }
-                    else
-                    {
-                        rep += currentCharacter;
-                    }
+                    escaped = true;
                 }
                 else
                 {
-                    if (currentCharacter == '\"')
-                    {
-                        if (code == BaseInstruction.NOP)
-                        {
-                            furtherType = 3; // don't add the '"'
-                        }
-                        else
-                        {
-                            Log.Error("Invalid string value");
-                            return null;
-                        }
-                    }
-                    else if (currentCharacter == '\'')
-                    {
-                        if (code != BaseInstruction.NOP)
-                        {
-                            Log.Error("Invalid character value");
-                            return null;
-                        }
-
-                        Advance(reader, 1);
-                        if (currentCharacter == '\\')
-                        {
-                            Advance(reader, 1);
-                        }
-
-                        char next = (char)reader.Peek();
-                        if (next != '\'')
-                        {
-                            Log.Error("Character literal too long", true);
-                            return null;
-                        }
-                        else
-                        {
-                            code = BaseInstruction.PUSH_CHAR;
-                            parameter = currentCharacter;
-                        }
-                    }
-                    else
-                    {
-                        char lower = char.ToLower(currentCharacter);
-                        if (lower == 'd' && furtherType == 0 && (code == BaseInstruction.NOP))
-                        {
-                            code = BaseInstruction.PUSH_64F;
-                        }
-                        else if (lower == 'f' && furtherType == 0 && (code == BaseInstruction.NOP))
-                        {
-                            code = BaseInstruction.PUSH_32F;
-                        }
-                        else if (lower == 'u')
-                        {
-                            if (code == BaseInstruction.PUSH_32I) code = BaseInstruction.PUSH_32U;
-                            if (code == BaseInstruction.PUSH_16I) code = BaseInstruction.PUSH_16U;
-                            if (code == BaseInstruction.PUSH_64I) code = BaseInstruction.PUSH_64U;
-                            else
-                            {
-                                Log.Error("u isn't valid on this value");
-                                return null;
-                            }
-                        }
-                        else if (lower == 's')
-                        {
-                            if (code == BaseInstruction.PUSH_32I) code = BaseInstruction.PUSH_16I;
-                            if (code == BaseInstruction.PUSH_32U) code = BaseInstruction.PUSH_16U;
-                            else
-                            {
-                                Log.Error("s isn't valid on this value");
-                                return null;
-                            }
-                        }
-                        else if (lower == 'l')
-                        {
-                            if (code == BaseInstruction.PUSH_32I) code = BaseInstruction.PUSH_64I;
-                            if (code == BaseInstruction.PUSH_32U) code = BaseInstruction.PUSH_64U;
-                            else
-                            {
-                                Log.Error("L isn't valid on this value");
-                                return null;
-                            }
-                        }
-                        else if (char.IsWhiteSpace(currentCharacter) == false)
-                        {
-                            rep += currentCharacter;
-                            code = BaseInstruction.PUSH_OBJ;
-                        }
-                    }
-                }
-            } while (Advance(reader, 1));
-
-            if (code == BaseInstruction.NOP) code = BaseInstruction.PUSH_32I;
-
-            int baseN = 0;
-            if (furtherType == 0) baseN = 10;
-            else if (furtherType == 1) baseN = 8;
-            else if (furtherType == 2) baseN = 16;
-            else if (furtherType == 5) baseN = 2;
-            else if (furtherType == 4) code = BaseInstruction.PUSH_STR;
-
-            if (code == BaseInstruction.PUSH_16I) parameter = Convert.ToInt16(rep, baseN);
-            else if (code == BaseInstruction.PUSH_32I) parameter = Convert.ToInt32(rep, baseN);
-            else if (code == BaseInstruction.PUSH_64I) parameter = Convert.ToInt64(rep, baseN);
-            else if (code == BaseInstruction.PUSH_16U) parameter = Convert.ToUInt16(rep, baseN);
-            else if (code == BaseInstruction.PUSH_32U) parameter = Convert.ToUInt32(rep, baseN);
-            else if (code == BaseInstruction.PUSH_64U) parameter = Convert.ToUInt64(rep, baseN);
-            else if (code == BaseInstruction.PUSH_32F) parameter = Convert.ToSingle(rep);
-            else if (code == BaseInstruction.PUSH_64F) parameter = Convert.ToDouble(rep);
-            else if (code == BaseInstruction.PUSH_OBJ)
-            {
-                if (rep == "true")
-                {
-                    code = BaseInstruction.PUSH_BOOL;
-                    parameter = true;
-                }
-                else if (rep == "false")
-                {
-                    code = BaseInstruction.PUSH_BOOL;
-                    parameter = false;
-                }
-                else if (rep.Contains("."))
-                {
-                    // Then its a multi call
-                    code = BaseInstruction.CALL;
-                    parameter = "get " + string.Join(".", rep.Substring(rep.IndexOf('.') + 1).Split(AllowedSeperators.ToArray(), StringSplitOptions.RemoveEmptyEntries));
-                }
-                else if (Registers.ContainsKey(rep))
-                {
-                    parameter = Registers[rep];
-                    code = BaseInstruction.PUSH_OBJ;
-                }
-                else
-                {
-                    Log.Error("Push REG Object error, register didn't contain rep");
-                    return null;
+                    escaped = false;
+                    builder.Append(currentCharacter);
                 }
             }
 
-            return new Instruction(code, parameter);
+            if (currentCharacter == endOn)
+            {
+                Instructions.Add(new Instruction(character ? BaseInstruction.PUSH_CHAR : BaseInstruction.PUSH_STR, builder.ToString()));
+                values++;
+                return true;
+            }
+            else
+            {
+                Log.Error($"No ending {endOn}");
+                return false;
+            }
+        }
+
+        private static bool ParseNumber(TextReader reader, ref int values)
+        {
+            StringBuilder builder = new StringBuilder();
+            int baseN = 10;
+            bool underscore = false;
+
+            if (currentCharacter == '-' || currentCharacter == '+')
+            {
+                builder.Append(currentCharacter);
+            }
+            else if (currentCharacter == '$')
+            {
+                // Decimal
+                baseN = -1;
+                char next = (char)reader.Read();
+                if (next == '+' || next == '-')
+                {
+                    builder.Append(next);
+                    Advance(reader, 1);
+                }
+            }
+            else if (currentCharacter == '.')
+            {
+                builder.Append('0');
+                builder.Append(currentCharacter);
+                baseN = 0;
+            }
+            else if (currentCharacter == '0')
+            {
+                char next = char.ToLower((char)reader.Peek());
+                if (next == 'x') baseN = 16;
+                else if (next == 'b') baseN = 2;
+                else if (next == 'o') baseN = 7;
+                else
+                {
+                    // We do want to keep the '0'
+                    builder.Append(currentCharacter);
+                    builder.Append(next); // Append both so we can skip both
+                    if (next == '.')
+                        baseN = 0;
+                }
+
+                Advance(reader, 1); // Skipping the '0' and the character after it
+            }
+            else
+            {
+                builder.Append(currentCharacter);
+            }
+
+            while (Advance(reader, 1))
+            {
+                if (char.IsWhiteSpace(currentCharacter))
+                    break;
+
+                if (currentCharacter == '_')
+                {
+                    if (underscore == false)
+                    {
+                        Log.Error("Can't have two '_' next to each other in a number");
+                        return false;
+                    }
+                    else
+                    {
+                        underscore = true;
+                        continue;
+                    }
+                }
+                else if (currentCharacter == '.')
+                {
+                    if (baseN == 0)
+                    {
+                        // Two '.' exist therefore error
+                        Log.Error("Can't have two '.' in a number");
+                        return false;
+                    }
+                    baseN = 0;
+                }
+                else if (baseN == 0 && currentCharacter == 'e')
+                {
+                    builder.Append(currentCharacter);
+                    Advance(reader, 1);
+                    if (currentCharacter != '+' && currentCharacter != '-' && char.IsDigit(currentCharacter) == false)
+                    {
+                        Log.Error("Invalid Exponent");
+                        return false;
+                    }
+                }
+                else if (baseN == 2 && (currentCharacter != '0' || currentCharacter != '1'))
+                    break;
+                else if (char.IsDigit(currentCharacter) == false && baseN != 16)
+                    break;
+                else if (baseN == 7 && (currentCharacter > '7'))
+                    break;
+                else if (baseN == 16 && (('a' <= currentCharacter) && (currentCharacter <= 'f') || ('A' <= currentCharacter) && (currentCharacter <= 'F')) == false)
+                    break;
+                else if (char.IsDigit(currentCharacter) == false)
+                {
+                    Log.Error("Invalid number");
+                    return false;
+                }
+
+                builder.Append(currentCharacter);
+                underscore = false;
+            }
+
+            if (baseN == -1)
+                // Decimal
+                Instructions.Add(new Instruction(BaseInstruction.PUSH_DEC, Convert.ToDecimal(builder.ToString())));
+            else if (baseN == 0)
+                // Floating Point
+                Instructions.Add(new Instruction(BaseInstruction.PUSH_NUM, Convert.ToDouble(builder.ToString())));
+            else
+                // Int
+                Instructions.Add(new Instruction(BaseInstruction.PUSH_INT, Convert.ToInt64(builder.ToString(), baseN)));
+
+            values++;
+            return true;
         }
 
         private static void RemoveWhitespacesAndComments(TextReader reader)

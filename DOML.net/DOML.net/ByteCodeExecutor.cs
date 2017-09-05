@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text;
 using DOML.Logger;
-using System.Reflection;
 
 namespace DOML.ByteCode
 {
@@ -38,8 +38,10 @@ namespace DOML.ByteCode
         MAKE_SPACE,
 
         /// <summary>
-        /// Reserve space in object registers.
+        /// Reserve space in object registers equal to the parameter given.
+        /// Note: The parameter should represent the new object register length not the difference.
         /// </summary>
+        /// <remarks> Parameter; An integer. </remarks>
         MAKE_REG,
 
         /* ------ Set Instructions ------ */
@@ -87,92 +89,20 @@ namespace DOML.ByteCode
         /// <summary>
         /// Pushes the parameter onto the stack.
         /// </summary>
-        /// <remarks> Parameter; A signed 8 integer. </remarks>
-        PUSH_8I,
-
-        /// <summary>
-        /// Pushes the parameter onto the stack.
-        /// </summary>
-        /// <remarks> Parameter; A signed 16 integer. </remarks>
-        PUSH_16I,
-
-        /// <summary>
-        /// Pushes the parameter onto the stack.
-        /// </summary>
-        /// <remarks> Parameter; A signed 32 integer. </remarks>
-        PUSH_32I,
-
-        /// <summary>
-        /// Pushes the parameter onto the stack.
-        /// </summary>
         /// <remarks> Parameter; A signed 64 integer. </remarks>
-        PUSH_64I,
-
-        /// <summary>
-        /// Pushes the parameter onto the stack.
-        /// </summary>
-        /// <remarks> Parameter; A unsigned 8 integer. </remarks>
-        PUSH_8U,
-
-        /// <summary>
-        /// Pushes the parameter onto the stack.
-        /// </summary>
-        /// <remarks> Parameter; An unsigned 16 integer. </remarks>
-        PUSH_16U,
-
-        /// <summary>
-        /// Pushes the parameter onto the stack.
-        /// </summary>
-        /// <remarks> Parameter; An unsigned 32 integer. </remarks>
-        PUSH_32U,
-
-        /// <summary>
-        /// Pushes the parameter onto the stack.
-        /// </summary>
-        /// <remarks> Parameter; An unsigned 64 integer. </remarks>
-        PUSH_64U,
-
-        /// <summary>
-        /// Pushes the parameter onto the stack.
-        /// </summary>
-        /// <remarks> Parameter; A 16 floating point number. </remarks>
-        PUSH_16F,
-
-        /// <summary>
-        /// Pushes the parameter onto the stack.
-        /// </summary>
-        /// <remarks> Parameter; A 32 floating point number. </remarks>
-        PUSH_32F,
+        PUSH_INT,
 
         /// <summary>
         /// Pushes the parameter onto the stack.
         /// </summary>
         /// <remarks> Parameter; A 64 floating point number. </remarks>
-        PUSH_64F,
-
-        /// <summary>
-        /// Pushes the parameter onto the stack.
-        /// </summary>
-        /// <remarks> Parameter; A 80 floating point number. </remarks>
-        PUSH_80F,
-
-        /// <summary>
-        /// Pushes the parameter onto the stack.
-        /// </summary>
-        /// <remarks> Parameter; A 128 floating point number. </remarks>
-        PUSH_128F,
-
-        /// <summary>
-        /// Pushes the parameter onto the stack.
-        /// </summary>
-        /// <remarks> Parameter; A 64 decimal floating point number. </remarks>
-        PUSH_64D,
+        PUSH_NUM,
 
         /// <summary>
         /// Pushes the parameter onto the stack.
         /// </summary>
         /// <remarks> Parameter; A 128 decimal floating point number. </remarks>
-        PUSH_128D,
+        PUSH_DEC,
 
         /// <summary>
         /// Pushes the parameter onto the stack.
@@ -200,14 +130,14 @@ namespace DOML.ByteCode
 
         /// <summary>
         /// Performs a function call based on the parameter.
-        /// Indexes <see cref="InstructionRegister.Registers"/> with "get" + parameter.
+        /// Indexes <see cref="InstructionRegister.Actions"/> with "get" + parameter.
         /// </summary>
         /// <remarks> Parameter; An identifier to call. </remarks>
         CALL,
 
         /// <summary>
         /// Creates a new object based on the parameter.
-        /// Indexes <see cref="InstructionRegister.Registers"/> with "new" + parameter.
+        /// Indexes <see cref="InstructionRegister.Actions"/> with "new" + parameter.
         /// </summary>
         /// <remarks> Parameter; An identifier to call. </remarks>
         NEW,
@@ -223,12 +153,12 @@ namespace DOML.ByteCode
         /// <summary>
         /// Pushes true if the max stack size is less than the top value, else false.
         /// </summary>
-        COMP_SIZE,
+        COMP_MAX,
 
         /// <summary>
         /// Pushes true if the current stack size is less than the top value, else false.
         /// </summary>
-        COMP_PTR,
+        COMP_SIZE,
 
         /// <summary>
         /// Pushes true if the current register size is less than the top value, else false.
@@ -370,13 +300,13 @@ namespace DOML.ByteCode
             case BaseInstruction.SET:
                 // Run user code
                 {
-                    if (!(instruction.Parameter is string key) || !InstructionRegister.Registers.ContainsKey(key))
+                    if (!(instruction.Parameter is string key) || !InstructionRegister.Actions.ContainsKey(key))
                     {
                         Log.Error("Set failed");
                     }
                     else
                     {
-                        InstructionRegister.Registers[key](Runtime);
+                        InstructionRegister.Actions[key](Runtime);
                     }
                     return;
                 }
@@ -432,62 +362,19 @@ namespace DOML.ByteCode
                     }
                     return;
                 }
-            /* Note: In the following cases I'm not casting since it would just jitter that away anyway. */
-            case BaseInstruction.PUSH_16I:
-                if (!(instruction.Parameter is short) || !Runtime.Push(instruction.Parameter, true))
-                {
-                    Log.Error("Push failed or wrong type.");
-                }
-                return;
-            case BaseInstruction.PUSH_32I:
-                if (!(instruction.Parameter is int) || !Runtime.Push(instruction.Parameter, true))
-                {
-                    Log.Error("Push failed or wrong type.");
-                }
-                return;
-            case BaseInstruction.PUSH_64I:
+            case BaseInstruction.PUSH_INT:
                 if (!(instruction.Parameter is long) || !Runtime.Push(instruction.Parameter, true))
                 {
                     Log.Error("Push failed or wrong type.");
                 }
                 return;
-            case BaseInstruction.PUSH_16U:
-                if (!(instruction.Parameter is ushort) || !Runtime.Push(instruction.Parameter, true))
-                {
-                    Log.Error("Push failed or wrong type.");
-                }
-                return;
-            case BaseInstruction.PUSH_32U:
-                if (!(instruction.Parameter is uint) || !Runtime.Push(instruction.Parameter, true))
-                {
-                    Log.Error("Push failed or wrong type.");
-                }
-                return;
-            case BaseInstruction.PUSH_64U:
-                if (!(instruction.Parameter is ulong) || !Runtime.Push(instruction.Parameter, true))
-                {
-                    Log.Error("Push failed or wrong type.");
-                }
-                return;
-            case BaseInstruction.PUSH_32F:
-                if (!(instruction.Parameter is float) || !Runtime.Push(instruction.Parameter, true))
-                {
-                    Log.Error("Push failed or wrong type.");
-                }
-                return;
-            case BaseInstruction.PUSH_64F:
+            case BaseInstruction.PUSH_NUM:
                 if (!(instruction.Parameter is double) || !Runtime.Push(instruction.Parameter, true))
                 {
                     Log.Error("Push failed or wrong type.");
                 }
                 return;
-            case BaseInstruction.PUSH_80F:
-                throw new NotImplementedException();
-            case BaseInstruction.PUSH_128F:
-                throw new NotImplementedException();
-            case BaseInstruction.PUSH_64D:
-                throw new NotImplementedException();
-            case BaseInstruction.PUSH_128D:
+            case BaseInstruction.PUSH_DEC:
                 if (!(instruction.Parameter is decimal) || !Runtime.Push(instruction.Parameter, true))
                 {
                     Log.Error("Push failed or wrong type.");
@@ -521,9 +408,9 @@ namespace DOML.ByteCode
             case BaseInstruction.NEW:
                 {
                     // At this level they do the same thing since we store the parameter with the 'get' or 'new'
-                    if (instruction.Parameter is string str && InstructionRegister.Registers.ContainsKey(str))
+                    if (instruction.Parameter is string str && InstructionRegister.Actions.ContainsKey(str))
                     {
-                        InstructionRegister.Registers[str](Runtime);
+                        InstructionRegister.Actions[str](Runtime);
                     }
                     else
                     {
@@ -552,7 +439,7 @@ namespace DOML.ByteCode
                 }
             #endregion
             #region Check Instructions
-            case BaseInstruction.COMP_SIZE:
+            case BaseInstruction.COMP_MAX:
                 {
                     if (!(instruction.Parameter is int res) || !Runtime.Push(Runtime.MaxStackSize < res, true))
                     {
@@ -560,7 +447,7 @@ namespace DOML.ByteCode
                     }
                     return;
                 }
-            case BaseInstruction.COMP_PTR:
+            case BaseInstruction.COMP_SIZE:
                 {
                     if (!(instruction.Parameter is int res) || !Runtime.Push(Runtime.CurrentStackSize < res, true))
                     {
@@ -611,7 +498,7 @@ namespace DOML.ByteCode
             #region Set Instructions
             case BaseInstruction.SET:
                 // Run user code
-                InstructionRegister.Registers[(string)instruction.Parameter](Runtime);
+                InstructionRegister.Actions[(string)instruction.Parameter](Runtime);
                 return;
             case BaseInstruction.COPY:
                 {
@@ -641,21 +528,9 @@ namespace DOML.ByteCode
                 return;
             // Arguably we should do a cast before push??
             // But it'll jit that way most likely and its just 'useless'
-            case BaseInstruction.PUSH_8I:
-            case BaseInstruction.PUSH_16I:
-            case BaseInstruction.PUSH_32I:
-            case BaseInstruction.PUSH_64I:
-            case BaseInstruction.PUSH_8U:
-            case BaseInstruction.PUSH_16U:
-            case BaseInstruction.PUSH_32U:
-            case BaseInstruction.PUSH_64U:
-            case BaseInstruction.PUSH_16F:
-            case BaseInstruction.PUSH_32F:
-            case BaseInstruction.PUSH_64F:
-            case BaseInstruction.PUSH_80F:
-            case BaseInstruction.PUSH_128F:
-            case BaseInstruction.PUSH_64D:
-            case BaseInstruction.PUSH_128D:
+            case BaseInstruction.PUSH_INT:
+            case BaseInstruction.PUSH_NUM:
+            case BaseInstruction.PUSH_DEC:
             case BaseInstruction.PUSH_STR:
             case BaseInstruction.PUSH_CHAR:
             case BaseInstruction.PUSH_BOOL:
@@ -665,7 +540,7 @@ namespace DOML.ByteCode
             case BaseInstruction.NEW:
             case BaseInstruction.CALL:
                 // At this level they do the same thing since we store the parameter with the 'get' or 'new'
-                InstructionRegister.Registers[(string)instruction.Parameter](Runtime);
+                InstructionRegister.Actions[(string)instruction.Parameter](Runtime);
                 return;
             case BaseInstruction.POP:
                 {
@@ -677,10 +552,10 @@ namespace DOML.ByteCode
                 }
             #endregion
             #region Check Instructions
-            case BaseInstruction.COMP_SIZE:
+            case BaseInstruction.COMP_MAX:
                 Runtime.Unsafe_Push(Runtime.MaxStackSize < (int)instruction.Parameter);
                 return;
-            case BaseInstruction.COMP_PTR:
+            case BaseInstruction.COMP_SIZE:
                 Runtime.Unsafe_Push(Runtime.CurrentStackSize < (int)instruction.Parameter);
                 return;
             case BaseInstruction.COMP_REG:

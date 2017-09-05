@@ -1,67 +1,63 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using DOML.Logger;
 
 namespace DOML.ByteCode
 {
     public static class InstructionRegister
     {
-        public enum RegisterType
-        {
-            GET,
-            SET,
-            NEW,
-        }
+        public readonly static Dictionary<string, Action<InterpreterRuntime>> Actions = new Dictionary<string, Action<InterpreterRuntime>>();
 
-        public static Dictionary<string, Action<InterpreterRuntime>> Registers { get; } = new Dictionary<string, Action<InterpreterRuntime>>();
+        public readonly static Dictionary<string, int> SizeOf = new Dictionary<string, int>();
 
         /// <summary>
-        /// Register an instruction.
+        /// 
         /// </summary>
-        /// <param name="action"> The instruction to register. </param>
-        /// <param name="name"> The name of the action. </param>
-        public static void RegisterInstruction(string name, RegisterType type, Action<InterpreterRuntime> action)
+        /// <param name="name"></param>
+        /// <param name="maxAmount"></param>
+        /// <param name="func"></param>
+        public static void RegisterGetter(string name, string forObject, int maxAmount, Action<InterpreterRuntime> func) => RegisterAllActionAndSizeOf($"get {forObject}::{name}", maxAmount, func);
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="name"></param>
+        /// <param name="maxAmount"></param>
+        /// <param name="func"></param>
+        public static void RegisterSetter(string name, string forObject, int maxAmount, Action<InterpreterRuntime> func) => RegisterAllActionAndSizeOf($"set {forObject}::{name}", maxAmount, func);
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="name"></param>
+        /// <param name="func"></param>
+        public static void UnRegisterGetter(string name, string forObject) => UnRegisterActionAndSizeOf($"get {forObject}::{name}");
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="name"></param>
+        /// <param name="func"></param>
+        public static void UnRegisterSetter(string name, string forObject) => UnRegisterActionAndSizeOf($"set {forObject}::{name}");
+
+        public static void RegisterConstructor(string name, Action<InterpreterRuntime> func)
         {
-            name = type.ToString().ToLower() + name;
-            if (Registers.ContainsKey(name) == false)
+            name = "new " + name;
+            if (Actions.ContainsKey(name) == false)
             {
-                Registers.Add(name, action);
+                Actions.Add(name, func);
             }
             else
             {
-                Registers[name] += action;
+                Log.Warning($"Action already exists for {name}, will set to the one provided");
+                Actions[name] = func;
             }
         }
 
-        /// <summary>
-        /// Unregister an instruction.
-        /// Do <see cref="ClearInstructions"/> to clear all instructions rather than unregister them all.
-        /// </summary>
-        /// <param name="name"> The name of the command to remove. </param>
-        /// <returns> True if it was already registered and if it could unregister succesfully, else false. </returns>
-        public static bool UnRegisterInstruction(string name, RegisterType type)
+        public static void UnRegisterConstructor(string name)
         {
-            return Registers.Remove(type.ToString().ToLower() + name);
-        }
-
-        /// <summary>
-        /// Unregister an action handler.
-        /// </summary>
-        /// <param name="name"> The name of the instruction. </param>
-        /// <param name="action"> The action to run. </param>
-        /// <returns> True if it was registered and removal was successful else false. </returns>
-        public static bool UnRegisterHandler(string name, RegisterType type, Action<InterpreterRuntime> action)
-        {
-            name = type.ToString().ToLower() + name;
-            if (Registers.ContainsKey(name))
-            {
-                Registers[name] -= action;
-                return true;
-            }
-            else
-            {
-                return false;
-            }
+            Actions.Remove("new " + name);
         }
 
         /// <summary>
@@ -70,7 +66,37 @@ namespace DOML.ByteCode
         /// </summary>
         public static void ClearInstructions(bool isGetter)
         {
-            Registers.Clear();
+            Actions.Clear();
+        }
+
+        private static void UnRegisterActionAndSizeOf(string name)
+        {
+            Actions.Remove(name);
+            SizeOf.Remove(name);
+        }
+
+        private static void RegisterAllActionAndSizeOf(string name, int amount, Action<InterpreterRuntime> func)
+        {
+            if (Actions.ContainsKey(name) == false)
+            {
+                Actions.Add(name, func);
+            }
+            else
+            {
+                Log.Warning($"Action already exists for {name}, will set to the one provided");
+                Actions[name] = func;
+            }
+
+            if (SizeOf.ContainsKey(name))
+            {
+                Log.Warning($"SizeOf already exists for {name}, will choose the higher variant.");
+                if (SizeOf[name] < amount)
+                    SizeOf[name] = amount;
+            }
+            else
+            {
+                SizeOf.Add(name, amount);
+            }
         }
     }
 }
