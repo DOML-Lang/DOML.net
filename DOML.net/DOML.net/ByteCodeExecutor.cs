@@ -6,7 +6,10 @@ using DOML.Logger;
 
 namespace DOML.ByteCode
 {
-    public enum BaseInstruction : byte
+    /// <summary>
+    /// Opcodes.
+    /// </summary>
+    public enum Opcodes : byte
     {
         /* ------ System Instructions ------ */
         /// <summary>
@@ -151,26 +154,24 @@ namespace DOML.ByteCode
 
         /* ------ Check Instructions  (35 - 55) ------ */
         /// <summary>
-        /// Pushes true if the max stack size is less than the top value, else false.
+        /// Pushes true if the max stack size is less than the parameter value, else false.
         /// </summary>
         COMP_MAX,
 
         /// <summary>
-        /// Pushes true if the current stack size is less than the top value, else false.
+        /// Pushes true if the current stack size is less than the parameter value, else false.
         /// </summary>
         COMP_SIZE,
 
         /// <summary>
-        /// Pushes true if the current register size is less than the top value, else false.
+        /// Pushes true if the current register size is less than the parameter value, else false.
         /// </summary>
         COMP_REG,
 
         /// <summary>
         /// The amount of instructions.
-        /// Keep ALWAYS as last.
-        /// May not match the range of the last set of instructions.
-        /// But that's okay since in reality that's an 'optimisation'.
         /// </summary>
+        /// <remarks> Keep ALWAYS as last value. </remarks>
         COUNT_OF_INSTRUCTIONS,
     }
 
@@ -181,26 +182,40 @@ namespace DOML.ByteCode
         /// Will also contain our instructions.
         /// </summary>
         public readonly List<Instruction> Instructions;
+
+        /// <summary>
+        /// The runtime of this interpreter instance.
+        /// </summary>
         private InterpreterRuntime Runtime;
 
+        /// <summary>
+        /// Create a new interpreter instance.
+        /// </summary>
+        /// <param name="instructions"> The instructions to assign to this interpreter instance. </param>
         public Interpreter(List<Instruction> instructions)
         {
             Instructions = instructions;
             Runtime = new InterpreterRuntime();
         }
 
+        /// <summary>
+        /// Executes the instructions.
+        /// </summary>
+        /// <param name="safe"> Run either safe or unsafe instructions. </param>
         public void Execute(bool safe = true)
         {
             Runtime.ClearSpace();
 
             for (int i = 0; i < Instructions.Count; i++)
             {
-                if (Instructions[i].OpCode >= (byte)BaseInstruction.COUNT_OF_INSTRUCTIONS)
+                if (safe)
                 {
-                    Log.Error("Opcode not in valid range");
-                }
-                else if (safe)
-                {
+                    if (Instructions[i].OpCode >= (byte)Opcodes.COUNT_OF_INSTRUCTIONS)
+                    {
+                        Log.Error("Opcode not in valid range");
+                        return;
+                    }
+
                     HandleSafeInstruction(Instructions[i]);
                 }
                 else
@@ -210,49 +225,58 @@ namespace DOML.ByteCode
             }
         }
 
-        public void Emit(ByteCodeWriter writer, bool withLineComments, bool withAnyComments)
+        /// <summary>
+        /// Emits instruction text.
+        /// </summary>
+        /// <param name="writer"> The writer to write to. </param>
+        /// <param name="withLineComments"> Add line comments. </param>
+        public void Emit(ByteCodeWriter writer, bool withLineComments)
         {
             writer.WriteHeader();
 
             for (int i = 0; i < Instructions.Count; i++)
             {
-                switch ((BaseInstruction)Instructions[i].OpCode)
+                if (Instructions[i].OpCode < (byte)Opcodes.COUNT_OF_INSTRUCTIONS)
                 {
-                default:
-                    if (Instructions[i].OpCode < (byte)BaseInstruction.COUNT_OF_INSTRUCTIONS)
-                    {
-                        writer.WriteInstructionText(Instructions[i], withLineComments);
-                    }
-                    else
-                    {
-                        Log.Error("Invalid instruction: " + Instructions[i].OpCode);
-                    }
-                    break;
+                    writer.WriteInstructionText(Instructions[i], withLineComments);
                 }
+                else
+                {
+                    Log.Error("Invalid instruction: " + Instructions[i].OpCode);
+                }
+                break;
             }
-
-            writer.Finish();
         }
 
-        public void Emit(string filePath, bool append, bool withLineComments, bool withAnyComments)
+        /// <summary>
+        /// Emits to a file path.
+        /// </summary>
+        /// <param name="filePath"> The path to write to. </param>
+        /// <param name="append"> Append or overwrite. </param>
+        /// <param name="withLineComments"> Write line comments. </param>
+        public void Emit(string filePath, bool append, bool withLineComments)
         {
             using (ByteCodeWriter writer = new ByteCodeWriter(filePath, append))
             {
-                Emit(writer, withLineComments, withAnyComments);
+                Emit(writer, withLineComments);
             }
         }
 
+        /// <summary>
+        /// Handles the instruction safely.
+        /// </summary>
+        /// <param name="instruction"> The instruction. </param>
         public void HandleSafeInstruction(Instruction instruction)
         {
-            switch ((BaseInstruction)instruction.OpCode)
+            switch ((Opcodes)instruction.OpCode)
             {
             #region System Instructions
-            case BaseInstruction.NOP:
-            case BaseInstruction.COMMENT:
+            case Opcodes.NOP:
+            case Opcodes.COMMENT:
                 // Explicity does nothing
                 // @NOTE: Should we even call them??
                 return;
-            case BaseInstruction.PANIC:
+            case Opcodes.PANIC:
                 {
                     if (!Runtime.Pop(out object result))
                     {
@@ -265,7 +289,7 @@ namespace DOML.ByteCode
                     }
                     return;
                 }
-            case BaseInstruction.MAKE_SPACE:
+            case Opcodes.MAKE_SPACE:
                 {
                     if (instruction.Parameter is int res)
                     {
@@ -280,7 +304,7 @@ namespace DOML.ByteCode
                     }
                     return;
                 }
-            case BaseInstruction.MAKE_REG:
+            case Opcodes.MAKE_REG:
                 {
                     if (instruction.Parameter is int res)
                     {
@@ -297,7 +321,7 @@ namespace DOML.ByteCode
                 }
             #endregion
             #region Set Instructions
-            case BaseInstruction.SET:
+            case Opcodes.SET:
                 // Run user code
                 {
                     if (!(instruction.Parameter is string key) || !InstructionRegister.Actions.ContainsKey(key))
@@ -310,7 +334,7 @@ namespace DOML.ByteCode
                     }
                     return;
                 }
-            case BaseInstruction.COPY:
+            case Opcodes.COPY:
                 {
                     // Peek top and push
                     if (!(instruction.Parameter is int res) || !Runtime.Peek(out object result))
@@ -330,13 +354,13 @@ namespace DOML.ByteCode
                     }
                     return;
                 }
-            case BaseInstruction.CLEAR:
+            case Opcodes.CLEAR:
                 Runtime.ClearSpace();
                 return;
-            case BaseInstruction.CLEAR_REG:
+            case Opcodes.CLEAR_REG:
                 Runtime.ClearRegisters();
                 return;
-            case BaseInstruction.REG_OBJ:
+            case Opcodes.REG_OBJ:
                 {
                     if (!(instruction.Parameter is int res) || !Runtime.Pop(out object result) || !Runtime.SetObject(result, res))
                     {
@@ -344,7 +368,7 @@ namespace DOML.ByteCode
                     }
                     return;
                 }
-            case BaseInstruction.UNREG_OBJ:
+            case Opcodes.UNREG_OBJ:
                 {
                     if (!(instruction.Parameter is int res) || !Runtime.UnsetObject(res))
                     {
@@ -354,7 +378,7 @@ namespace DOML.ByteCode
                 }
             #endregion
             #region Push Instructions
-            case BaseInstruction.PUSH_OBJ:
+            case Opcodes.PUSH_OBJ:
                 {
                     if (!(instruction.Parameter is int res) || !Runtime.GetObject(res, out object result) || !Runtime.Push(result, true))
                     {
@@ -362,50 +386,50 @@ namespace DOML.ByteCode
                     }
                     return;
                 }
-            case BaseInstruction.PUSH_INT:
+            case Opcodes.PUSH_INT:
                 if (!(instruction.Parameter is long) || !Runtime.Push(instruction.Parameter, true))
                 {
                     Log.Error("Push failed or wrong type.");
                 }
                 return;
-            case BaseInstruction.PUSH_NUM:
+            case Opcodes.PUSH_NUM:
                 if (!(instruction.Parameter is double) || !Runtime.Push(instruction.Parameter, true))
                 {
                     Log.Error("Push failed or wrong type.");
                 }
                 return;
-            case BaseInstruction.PUSH_DEC:
+            case Opcodes.PUSH_DEC:
                 if (!(instruction.Parameter is decimal) || !Runtime.Push(instruction.Parameter, true))
                 {
                     Log.Error("Push failed or wrong type.");
                 }
                 return;
-            case BaseInstruction.PUSH_STR:
+            case Opcodes.PUSH_STR:
                 if (!(instruction.Parameter is string) || !Runtime.Push(instruction.Parameter, true))
                 {
                     Log.Error("Push failed or wrong type.");
                 }
                 return;
-            case BaseInstruction.PUSH_CHAR:
+            case Opcodes.PUSH_CHAR:
                 if (!(instruction.Parameter is char) || !Runtime.Push(instruction.Parameter, true))
                 {
                     Log.Error("Push failed or wrong type.");
                 }
                 return;
-            case BaseInstruction.PUSH_BOOL:
+            case Opcodes.PUSH_BOOL:
                 if (!(instruction.Parameter is bool) || !Runtime.Push(instruction.Parameter, true))
                 {
                     Log.Error("Push failed or wrong type.");
                 }
                 return;
-            case BaseInstruction.PUSH:
+            case Opcodes.PUSH:
                 if (!Runtime.Push(instruction.Parameter, true))
                 {
                     Log.Error("Push failed");
                 }
                 return;
-            case BaseInstruction.CALL:
-            case BaseInstruction.NEW:
+            case Opcodes.CALL:
+            case Opcodes.NEW:
                 {
                     // At this level they do the same thing since we store the parameter with the 'get' or 'new'
                     if (instruction.Parameter is string str && InstructionRegister.Actions.ContainsKey(str))
@@ -418,13 +442,13 @@ namespace DOML.ByteCode
                     }
                     return;
                 }
-            case BaseInstruction.POP:
+            case Opcodes.POP:
                 {
                     if (instruction.Parameter is int i && i < Runtime.CurrentStackSize)
                     {
                         for (; i < Runtime.CurrentStackSize; i++)
                         {
-                            if (!Runtime.Pop(out object obj))
+                            if (!Runtime.PopWithNoReturn())
                             {
                                 Log.Error("Pop failed");
                                 return;
@@ -439,7 +463,7 @@ namespace DOML.ByteCode
                 }
             #endregion
             #region Check Instructions
-            case BaseInstruction.COMP_MAX:
+            case Opcodes.COMP_MAX:
                 {
                     if (!(instruction.Parameter is int res) || !Runtime.Push(Runtime.MaxStackSize < res, true))
                     {
@@ -447,7 +471,7 @@ namespace DOML.ByteCode
                     }
                     return;
                 }
-            case BaseInstruction.COMP_SIZE:
+            case Opcodes.COMP_SIZE:
                 {
                     if (!(instruction.Parameter is int res) || !Runtime.Push(Runtime.CurrentStackSize < res, true))
                     {
@@ -455,7 +479,7 @@ namespace DOML.ByteCode
                     }
                     return;
                 }
-            case BaseInstruction.COMP_REG:
+            case Opcodes.COMP_REG:
                 {
                     if (!(instruction.Parameter is int res) || !Runtime.Push(Runtime.RegisterSize < res, true))
                     {
@@ -469,96 +493,99 @@ namespace DOML.ByteCode
             }
         }
 
+        /// <summary>
+        /// Handles the instruction unsafely.
+        /// </summary>
+        /// <param name="instruction"> The instruction. </param>
         public void HandleUnsafeInstruction(Instruction instruction)
         {
-            switch ((BaseInstruction)instruction.OpCode)
+            switch ((Opcodes)instruction.OpCode)
             {
             #region System Instructions
-            case BaseInstruction.NOP:
-            case BaseInstruction.COMMENT:
+            case Opcodes.NOP:
+            case Opcodes.COMMENT:
                 // Explicity does nothing
                 // @NOTE: Should we even call them??
                 return;
-            case BaseInstruction.PANIC:
+            case Opcodes.PANIC:
                 {
-                    if (Runtime.Unsafe_Pop<object>() != instruction.Parameter)
+                    if (Runtime.Unsafe_Pop() != instruction.Parameter)
                     {
-                        // Maybe we convert to string then check??
                         Log.Error("PANIC: Top value doesn't equal parameter.");
                     }
                     return;
                 }
-            case BaseInstruction.MAKE_SPACE:
+            case Opcodes.MAKE_SPACE:
                 Runtime.ReserveSpace((int)instruction.Parameter);
                 return;
-            case BaseInstruction.MAKE_REG:
+            case Opcodes.MAKE_REG:
                 Runtime.ReserveRegister((int)instruction.Parameter);
                 return;
             #endregion
             #region Set Instructions
-            case BaseInstruction.SET:
+            case Opcodes.SET:
                 // Run user code
                 InstructionRegister.Actions[(string)instruction.Parameter](Runtime);
                 return;
-            case BaseInstruction.COPY:
+            case Opcodes.COPY:
                 {
-                    object obj = Runtime.Unsafe_Peek<object>();
+                    object obj = Runtime.Unsafe_Peek();
                     for (int i = (int)instruction.Parameter; i >= 0; i--)
                     {
                         Runtime.Unsafe_Push(obj);
                     }
                     return;
                 }
-            case BaseInstruction.CLEAR:
+            case Opcodes.CLEAR:
                 Runtime.Unsafe_ClearSpace();
                 return;
-            case BaseInstruction.CLEAR_REG:
+            case Opcodes.CLEAR_REG:
                 Runtime.Unsafe_ClearRegisters();
                 return;
-            case BaseInstruction.REG_OBJ:
-                Runtime.Unsafe_SetObject(Runtime.Unsafe_Pop<object>(), (int)instruction.Parameter);
+            case Opcodes.REG_OBJ:
+                Runtime.Unsafe_SetObject(Runtime.Unsafe_Pop(), (int)instruction.Parameter);
                 return;
-            case BaseInstruction.UNREG_OBJ:
+            case Opcodes.UNREG_OBJ:
                 Runtime.Unsafe_UnsetObject((int)instruction.Parameter);
                 return;
             #endregion
             #region Push Instructions
-            case BaseInstruction.PUSH_OBJ:
+            case Opcodes.PUSH_OBJ:
                 Runtime.Unsafe_Push(Runtime.Unsafe_GetObject((int)instruction.Parameter));
                 return;
             // Arguably we should do a cast before push??
             // But it'll jit that way most likely and its just 'useless'
-            case BaseInstruction.PUSH_INT:
-            case BaseInstruction.PUSH_NUM:
-            case BaseInstruction.PUSH_DEC:
-            case BaseInstruction.PUSH_STR:
-            case BaseInstruction.PUSH_CHAR:
-            case BaseInstruction.PUSH_BOOL:
-            case BaseInstruction.PUSH:
+            case Opcodes.PUSH_INT:
+            case Opcodes.PUSH_NUM:
+            case Opcodes.PUSH_DEC:
+            case Opcodes.PUSH_STR:
+            case Opcodes.PUSH_CHAR:
+            case Opcodes.PUSH_BOOL:
+            case Opcodes.PUSH:
                 Runtime.Unsafe_Push(instruction.Parameter);
                 return;
-            case BaseInstruction.NEW:
-            case BaseInstruction.CALL:
+            case Opcodes.NEW:
+            case Opcodes.CALL:
                 // At this level they do the same thing since we store the parameter with the 'get' or 'new'
                 InstructionRegister.Actions[(string)instruction.Parameter](Runtime);
                 return;
-            case BaseInstruction.POP:
+            case Opcodes.POP:
                 {
                     for (int i = (int)instruction.Parameter; i < Runtime.CurrentStackSize; i++)
                     {
-                        Runtime.Unsafe_Pop<object>();
+                        Runtime.Unsafe_Pop_NoReturn();
                     }
                     return;
                 }
             #endregion
             #region Check Instructions
-            case BaseInstruction.COMP_MAX:
+            case Opcodes.COMP_MAX:
                 Runtime.Unsafe_Push(Runtime.MaxStackSize < (int)instruction.Parameter);
                 return;
-            case BaseInstruction.COMP_SIZE:
+            case Opcodes.COMP_SIZE:
                 Runtime.Unsafe_Push(Runtime.CurrentStackSize < (int)instruction.Parameter);
                 return;
-            case BaseInstruction.COMP_REG:
+            case Opcodes.COMP_REG:
                 Runtime.Unsafe_Push(Runtime.RegisterSize < (int)instruction.Parameter);
                 return;
             #endregion

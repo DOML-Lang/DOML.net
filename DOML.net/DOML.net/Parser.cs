@@ -20,11 +20,45 @@ namespace DOML
         private static int nextRegister;
         private static int maxSpaces;
 
-        private static char[] AllowedSeperators = new char[]{ '[', ']', '.', '{', '}', '(', ')', '<', '>', '-' };
+        private static Dictionary<string, CreationObjectInfo> Registers { get; } = new Dictionary<string, CreationObjectInfo>();
 
-        private static Dictionary<string, CreationObjectInfo> Registers = new Dictionary<string, CreationObjectInfo>();
+        private static List<Instruction> Instructions { get; } = new List<Instruction>();
 
-        private static List<Instruction> Instructions = new List<Instruction>();
+        /// <summary>
+        /// Get an interpreter from a file path.
+        /// </summary>
+        /// <param name="filePath"> The path to the file to open. </param>
+        /// <returns> An interpreter instance. </returns>
+        public static Interpreter GetInterpreterFromPath(string filePath)
+        {
+            if (File.Exists(filePath))
+                return GetInterpreter(new StreamReader(new FileStream(filePath, FileMode.Open)));
+            else
+                throw new FileNotFoundException("File Path Invalid");
+        }
+
+        /// <summary>
+        /// Get an interpreter from text.
+        /// </summary>
+        /// <param name="text"> The text to interpret. </param>
+        /// <returns> An interpreter instance. </returns>
+        public static Interpreter GetInterpreterFromText(string text)
+        {
+            if (text != null)
+                return GetInterpreter(new StringReader(text));
+            else
+                throw new ArgumentNullException("Text is null");
+        }
+
+        private static bool AllowedSeperator(char value)
+        {
+            // Maybe bounding checks
+            return value == '[' || value == ']'
+                || value == '{' || value == '}'
+                || value == '(' || value == ')'
+                || value == '<' || value == '>'
+                || value == '-';
+        }
 
         private static string AdvanceLine(TextReader reader)
         {
@@ -43,24 +77,14 @@ namespace DOML
 
             int last = -1;
 
-            if (amount > 1)
-            {
-                for (; amount > 0; amount--)
-                {
-                    last = reader.Read();
-                }
-            }
-            else
-            {
+            for (; amount > 0; amount--)
                 last = reader.Read();
-            }
 
             currentCharacter = (char)last;
-
             return last >= 0;
         }
 
-        private static StringBuilder ParseIdentifierStatement(TextReader reader, string prefix, char[] breakOn, char[] additionalAllowedCharacters)
+        private static StringBuilder ParseIdentifierStatement(TextReader reader, string prefix, char[] breakOn, bool allowDot, bool allowSeperators)
         {
             if (!char.IsLetter(currentCharacter) && currentCharacter != '_')
             {
@@ -70,18 +94,22 @@ namespace DOML
 
             StartingLine = CurrentLine;
             StartingColumn = CurrentColumn;
-
             StringBuilder variableName = new StringBuilder(prefix);
             variableName.Append(currentCharacter);
 
             // Get identifier before '='
             while (Advance(reader, 1))
             {
-                if (breakOn.Contains(currentCharacter) || char.IsWhiteSpace(currentCharacter))
+                if (allowSeperators && AllowedSeperator(currentCharacter))
+                {
+                    variableName.Append('.');
+                    continue;
+                }
+                else if (breakOn.Contains(currentCharacter) || char.IsWhiteSpace(currentCharacter) || (currentCharacter == '.' && reader.Peek() == '.'))
                 {
                     break;
                 }
-                else if (char.IsLetterOrDigit(currentCharacter) == false && currentCharacter != '_' && additionalAllowedCharacters.Contains(currentCharacter) == false)
+                else if (char.IsLetterOrDigit(currentCharacter) == false && currentCharacter != '_' && currentCharacter == '.' && allowDot == false)
                 {
                     Log.Error($"Invalid character for identifier starting at Line: /{StartingLine}, Column: /{StartingColumn}", true);
                     return null;
@@ -102,71 +130,44 @@ namespace DOML
             RemoveWhitespacesAndComments(reader);
 
             // Parse the creation identifier
-            string variableName = ParseIdentifierStatement(reader, string.Empty, new char[]{ '/', '=' }, new char[0]).ToString();
+            string variableName = ParseIdentifierStatement(reader, string.Empty, new char[]{ '/', '=' }, false, false).ToString();
             if (variableName == null)
-            {
-                // We had a problem so return false
+                // We had a problem so return false, the error will be logged from the parse identifier statement
                 return false;
-            }
 
             // Add it to register and then remove whitespace
             RemoveWhitespacesAndComments(reader);
-
-            // Since its a creation we require a '=' to exist next
             if (currentCharacter != '=')
             {
-                Log.Error($"Missing '=' starting at Line: /{StartingLine}, Column: /{StartingColumn}", true);
+                Log.Error($"Missing '=' starting at Line: /{CurrentLine}, Column: /{CurrentColumn}", true);
                 return false;
             }
 
             Advance(reader, 1);
             RemoveWhitespacesAndComments(reader);
 
-            StringBuilder creationName = ParseIdentifierStatement(reader, "new ", new char[]{ '\n', ';' }, new char[]{ '.' });
+            StringBuilder creationName = ParseIdentifierStatement(reader, "new ", new char[]{ '\n', ';' }, true, false);
             if (creationName == null)
-            {
-                // We had a problem so return false
+                // We had a problem so return false, the error will be logged from the parse identifier statement
                 return false;
-            }
 
-            // @TODO: Refactor later effectively same code twice
-            if (creationName[creationName.Length - 1] == '.')
-            {
-                if (creationName[creationName.Length - 2] == '.' && creationName[creationName.Length - 3] == '.')
-                {
-                    // We have three dots at the end, so trim end and then set current
-                    creationName.Remove(creationName.Length - 3, 3);
-                    currentVariable = variableName;
-                }
-                else
-                {
-                    // Cant end on one or two dots
-                    Log.Error("Not a valid identifier, can't end on one/two dots, only can end on three", true);
-                    return false;
-                }
-            }
-            else
+            RemoveWhitespacesAndComments(reader);
+            if (currentCharacter == '.' && reader.Peek() == '.')
             {
                 // This is for when the `...` is after the identifier with a space inbetween
-                RemoveWhitespacesAndComments(reader);
-                if (currentCharacter == '.' && reader.Peek() == '.')
+                Advance(reader, 2);
+                if (currentCharacter != '.')
                 {
-                    Advance(reader, 2);
-                    if (currentCharacter == '.')
-                    {
-                        currentVariable = variableName;
-                    }
-                    else
-                    {
-                        Log.Error("Can't end a line on two dots, did you mean to do three?", true);
-                    }
+                    Log.Error("Can't end a line on two dots, did you mean to do three?", true);
+                    return false;
                 }
+
+                currentVariable = variableName;
             }
 
             Registers.Add(variableName, new CreationObjectInfo(nextRegister++, creationName.ToString(4, creationName.Length - 4)));
-
-            Instructions.Add(new Instruction(BaseInstruction.NEW, creationName.ToString()));
-            Instructions.Add(new Instruction(BaseInstruction.REG_OBJ, Registers[variableName].RegisterID));
+            Instructions.Add(new Instruction(Opcodes.NEW, creationName.ToString()));
+            Instructions.Add(new Instruction(Opcodes.REG_OBJ, Registers[variableName].RegisterID));
             return true;
         }
 
@@ -181,24 +182,18 @@ namespace DOML
             // Push object
             if (currentCharacter == '.')
             {
-                if (currentVariable != null && Registers.ContainsKey(currentVariable))
-                {
-                    // Use current variable
-                    objectInfoToPush = Registers[currentVariable];
-                }
-                else
+                if (currentVariable == null || !Registers.ContainsKey(currentVariable))
                 {
                     Log.Error("Are you missing a '...' in the previous line.  No previous 'variable' history found.", true);
                     return false;
                 }
+
+                objectInfoToPush = Registers[currentVariable];
             }
             else
             {
-                parsed = ParseIdentifierStatement(reader, string.Empty, new char[] { '.', '/' }, new char[0]);
-                if (parsed == null)
-                {
-                    return false;
-                }
+                parsed = ParseIdentifierStatement(reader, string.Empty, new char[] { '.', '/' }, false, false);
+                if (parsed == null) return false;
 
                 variableName = parsed.ToString();
 
@@ -208,50 +203,38 @@ namespace DOML
                     return false;
                 }
 
-                if (Registers.ContainsKey(variableName))
-                {
-                    // Use current variable
-                    objectInfoToPush = Registers[variableName];
-                }
-                else
+                if (Registers.ContainsKey(variableName) == false)
                 {
                     Log.Error($"No previous 'variable' history found for /{variableName}.", true);
                     return false;
                 }
+
+                objectInfoToPush = Registers[variableName];
             }
 
             // The object ID will be pushed last next we get what we are setting
             Advance(reader, 1); // eat up the '.'
 
-            parsed = ParseIdentifierStatement(reader, $"set {objectInfoToPush.ObjectType}::", new char[] { '/', '=' }, AllowedSeperators);
-            if (parsed == null)
-            {
-                return false;
-            }
-
-            // Replace the seperators with '.'
-            for (int i = 0; i < AllowedSeperators.Length; i++)
-            {
-                parsed.Replace(AllowedSeperators[i], '.');
-            }
+            parsed = ParseIdentifierStatement(reader, $"set {objectInfoToPush.ObjectType}::", new char[] { '/', '=' }, true, true);
+            if (parsed == null) return false;
 
             // Remove any trailing '.'
-            int depth = -1;
-            for (int i = parsed.Length - 1; i >= 0; i--)
+            // Reasonably efficient not too worried and won't run if no trailings
+            if (parsed[parsed.Length - 1] == '.')
             {
-                if (parsed[i] == '.')
-                    depth = i;
-                else
-                    break;
-            }
+                for (int i = parsed.Length - 1, depth = -1; i >= 0; i--)
+                {
+                    if (parsed[i] != '.')
+                    {
+                        parsed.Remove(depth, parsed.Length - depth);
+                        break;
+                    }
 
-            if (depth > -1)
-            {
-                parsed.Remove(depth, parsed.Length - depth);
+                    depth = i;
+                }
             }
 
             variableName = parsed.ToString();
-
             RemoveWhitespacesAndComments(reader);
 
             // Should start with a '='
@@ -264,15 +247,14 @@ namespace DOML
             // Handle values
             Instruction? value;
             int values = 0;
+
             do
             {
                 Advance(reader, 1); // eat '=' or ','
                 RemoveWhitespacesAndComments(reader);
                 if (currentCharacter == '@' || currentCharacter == ';' || reader.Peek() <= 0)
-                {
-                    // This allows you to have a comma at the very end
+                    // This allows you to have a comma at the very end despite being a little hacky
                     break;
-                }
 
                 if (ParseValue(reader, ref values) == false)
                 {
@@ -290,13 +272,13 @@ namespace DOML
                 return false;
             }
 
-            Instructions.Add(new Instruction(BaseInstruction.PUSH_OBJ, objectInfoToPush.RegisterID));
+            Instructions.Add(new Instruction(Opcodes.PUSH_OBJ, objectInfoToPush.RegisterID));
             values++;
 
             if (values > maxSpaces) maxSpaces = values;
 
             // Now push object and then the set command
-            Instructions.Add(new Instruction(BaseInstruction.SET, variableName));
+            Instructions.Add(new Instruction(Opcodes.SET, variableName));
             RemoveWhitespacesAndComments(reader);
             return true;
         }
@@ -314,11 +296,9 @@ namespace DOML
             currentVariable = null;
             nextRegister = 0;
             maxSpaces = 0;
+            Instructions.Add(new Instruction(Opcodes.MAKE_SPACE, null)); // To be set at the end - ReserveSpace
+            Instructions.Add(new Instruction(Opcodes.MAKE_REG, null)); // To be set at the end - ReserveRegisters
 
-            Instructions.Add(new Instruction(BaseInstruction.MAKE_SPACE, null)); // To be set at the end - ReserveSpace
-            Instructions.Add(new Instruction(BaseInstruction.MAKE_REG, null)); // To be set at the end - ReserveRegisters
-
-            // Parse
             while (currentCharacter == '@' || currentCharacter == ';' || Advance(reader, 1))
             {
                 // Remove whitespace/comments before first line
@@ -345,10 +325,10 @@ namespace DOML
                 }
             }
 
-            Instructions[0] = new Instruction(BaseInstruction.MAKE_SPACE, maxSpaces);
-            Instructions[1] = new Instruction(BaseInstruction.MAKE_REG, nextRegister);
-
+            Instructions[0] = new Instruction(Opcodes.MAKE_SPACE, maxSpaces);
+            Instructions[1] = new Instruction(Opcodes.MAKE_REG, nextRegister);
             reader.Dispose();
+
             return new Interpreter(Instructions);
         }
 
@@ -369,65 +349,55 @@ namespace DOML
                 StringBuilder builder = new StringBuilder();
                 do
                 {
-                    builder.Append(AllowedSeperators.Contains(currentCharacter) ? '.' : currentCharacter);
+                    builder.Append(AllowedSeperator(currentCharacter) ? '.' : currentCharacter);
                 }
                 while (Advance(reader, 1) && currentCharacter != ',' && char.IsWhiteSpace(currentCharacter) == false);
 
                 string result = builder.ToString();
-                if (result == "true")
+                if (bool.TryParse(result, out bool res))
                 {
-                    Instructions.Add(new Instruction(BaseInstruction.PUSH_BOOL, true));
+                    Instructions.Add(new Instruction(Opcodes.PUSH_BOOL, res));
                     values++;
                     return true;
                 }
-                else if (result == "false")
+                else if (result.Contains('.'))
                 {
-                    Instructions.Add(new Instruction(BaseInstruction.PUSH_BOOL, false));
+                    string[] splitObject = result.Split('.');
+                    string callee;
+                    if (Registers.ContainsKey(splitObject[0]))
+                    {
+                        // We are referring to one of our objects
+                        CreationObjectInfo info = Registers[splitObject[0]];
+                        Instructions.Add(new Instruction(Opcodes.PUSH_OBJ, info.RegisterID));
+                        callee = $"get {info.ObjectType}::{result.Substring(splitObject[0].Length + 1)}";
+                    }
+                    else
+                    {
+                        // We are referring outside of one of our objects
+                        callee = $"get {result}";
+                    }
+
+                    if (InstructionRegister.Actions.ContainsKey(callee) == false)
+                    {
+                        Log.Error("Can't find action");
+                        return false;
+                    }
+
+                    Instructions.Add(new Instruction(Opcodes.CALL, callee));
+                    values += InstructionRegister.SizeOf[callee];
+                    return true;
+                }
+                else if (Registers.ContainsKey(result))
+                {
+                    // We are passing an object
+                    Instructions.Add(new Instruction(Opcodes.PUSH_OBJ, Registers[result].RegisterID));
                     values++;
                     return true;
                 }
                 else
                 {
-                    // Its an object
-                    if (result.Contains('.'))
-                    {
-                        string[] splitObject = result.Split('.');
-                        string callee;
-                        if (Registers.ContainsKey(splitObject[0]))
-                        {
-                            // We are referring to one of our objects
-                            CreationObjectInfo info = Registers[splitObject[0]];
-                            Instructions.Add(new Instruction(BaseInstruction.PUSH_OBJ, info.RegisterID));
-                            callee = $"get {info.ObjectType}::{result.Substring(splitObject[0].Length + 1)}";
-                        }
-                        else
-                        {
-                            // We are referring outside of one of our objects
-                            callee = $"get {result}";
-                        }
-
-                        if (InstructionRegister.Actions.ContainsKey(callee) == false)
-                        {
-                            Log.Error("Can't find action");
-                            return false;
-                        }
-
-                        Instructions.Add(new Instruction(BaseInstruction.CALL, callee));
-                        values += InstructionRegister.SizeOf[callee];
-                        return true;
-                    }
-                    else if (Registers.ContainsKey(result))
-                    {
-                        // We are passing an object
-                        Instructions.Add(new Instruction(BaseInstruction.PUSH_OBJ, Registers[result].RegisterID));
-                        values++;
-                        return true;
-                    }
-                    else
-                    {
-                        Log.Error("Doesn't exist in any registers and no call exists for it");
-                        return false;
-                    }
+                    Log.Error("Doesn't exist in any registers and no call exists for it");
+                    return false;
                 }
             }
         }
@@ -440,10 +410,8 @@ namespace DOML
             // We can do it like this because we want to throw the starting string character out anyway
             while (Advance(reader, 1))
             {
-                if (currentCharacter == endOn && escaped == false)
-                {
-                    break;
-                }
+                if (currentCharacter == endOn && escaped == false) break;
+
                 else if (currentCharacter == '/' && escaped == false && reader.Peek() == endOn)
                 {
                     escaped = true;
@@ -455,17 +423,15 @@ namespace DOML
                 }
             }
 
-            if (currentCharacter == endOn)
-            {
-                Instructions.Add(new Instruction(character ? BaseInstruction.PUSH_CHAR : BaseInstruction.PUSH_STR, builder.ToString()));
-                values++;
-                return true;
-            }
-            else
+            if (currentCharacter != endOn)
             {
                 Log.Error($"No ending {endOn}");
                 return false;
             }
+
+            Instructions.Add(new Instruction(character ? Opcodes.PUSH_CHAR : Opcodes.PUSH_STR, builder.ToString()));
+            values++;
+            return true;
         }
 
         private static bool ParseNumber(TextReader reader, ref int values)
@@ -477,8 +443,10 @@ namespace DOML
             if (currentCharacter == '-' || currentCharacter == '+')
             {
                 builder.Append(currentCharacter);
+                Advance(reader, 1);
             }
-            else if (currentCharacter == '$')
+
+            if (currentCharacter == '$')
             {
                 // Decimal
                 baseN = -1;
@@ -506,7 +474,7 @@ namespace DOML
                     // We do want to keep the '0'
                     builder.Append(currentCharacter);
                     builder.Append(next); // Append both so we can skip both
-                    if (next == '.')
+                    if (next == '.') // @FIXME: hacky
                         baseN = 0;
                 }
 
@@ -519,8 +487,7 @@ namespace DOML
 
             while (Advance(reader, 1))
             {
-                if (char.IsWhiteSpace(currentCharacter))
-                    break;
+                if (char.IsWhiteSpace(currentCharacter)) break;
 
                 if (currentCharacter == '_')
                 {
@@ -575,13 +542,13 @@ namespace DOML
 
             if (baseN == -1)
                 // Decimal
-                Instructions.Add(new Instruction(BaseInstruction.PUSH_DEC, Convert.ToDecimal(builder.ToString())));
+                Instructions.Add(new Instruction(Opcodes.PUSH_DEC, Convert.ToDecimal(builder.ToString())));
             else if (baseN == 0)
                 // Floating Point
-                Instructions.Add(new Instruction(BaseInstruction.PUSH_NUM, Convert.ToDouble(builder.ToString())));
+                Instructions.Add(new Instruction(Opcodes.PUSH_NUM, Convert.ToDouble(builder.ToString())));
             else
                 // Int
-                Instructions.Add(new Instruction(BaseInstruction.PUSH_INT, Convert.ToInt64(builder.ToString(), baseN)));
+                Instructions.Add(new Instruction(Opcodes.PUSH_INT, Convert.ToInt64(builder.ToString(), baseN)));
 
             values++;
             return true;
@@ -590,8 +557,6 @@ namespace DOML
         private static void RemoveWhitespacesAndComments(TextReader reader)
         {
             int blockCommentNesting = 0;
-            int startingLine = 0;
-            int startingColumn = 0;
             StringBuilder comment = new StringBuilder();
 
             do
@@ -600,87 +565,43 @@ namespace DOML
                 {
                     blockCommentNesting--;
                     Advance(reader, 1); // consume '/'
-                    if (comment.Length > 0)
-                    {
-                        Instructions.Add(new Instruction(BaseInstruction.COMMENT, comment.ToString()));
-                    }
+                    Instructions.Add(new Instruction(Opcodes.COMMENT, comment.ToString()));
                 }
 
-                if (!char.IsWhiteSpace(currentCharacter) && blockCommentNesting == 0)
+                if (currentCharacter == '/')
                 {
-                    if (currentCharacter == '/')
+                    char next = (char)reader.Peek();
+                    if (next == '/' && blockCommentNesting == 0)
                     {
-                        char next = (char)reader.Peek();
-                        if (next == '/')
-                        {
-                            Advance(reader, 1);
-                            // Advance till end of line
-                            Instructions.Add(new Instruction(BaseInstruction.COMMENT, AdvanceLine(reader)));
-                        }
-                        else if (next == '*')
-                        {
-                            if (blockCommentNesting == 0)
-                            {
-                                startingLine = CurrentLine;
-                                startingColumn = CurrentColumn;
-                            }
-                            blockCommentNesting++;
-                            Advance(reader, 1); // consume '*'
-                        }
-                        else
-                        {
-                            break; // no comments starting so we can break
-                        }
+                        Advance(reader, 1);
+                        Instructions.Add(new Instruction(Opcodes.COMMENT, AdvanceLine(reader)));
                     }
-                    else
+                    else if (next == '*')
                     {
-                        break; // no comments starting so we can break
+                        if (blockCommentNesting == 0)
+                        {
+                            StartingLine = CurrentLine;
+                            StartingColumn = CurrentColumn;
+                        }
+
+                        blockCommentNesting++;
+                        Advance(reader, 1); // consume '*'
                     }
                 }
-                else
+                else if (blockCommentNesting > 0)
                 {
                     comment.Append(currentCharacter);
+                }
+                else if (char.IsWhiteSpace(currentCharacter) == false)
+                {
+                    break; // no comments starting so we can break
                 }
             } while (Advance(reader, 1));
 
             if (blockCommentNesting > 0)
             {
-                Log.Error($"Didn't finish block comment starting at Line: /{startingLine}, Column: /{startingColumn}", true);
+                Log.Error($"Didn't finish block comment starting at Line: /{StartingLine}, Column: /{StartingColumn}", true);
                 return;
-            }
-        }
-
-        /// <summary>
-        /// Get an interpreter from a file path.
-        /// </summary>
-        /// <param name="filePath"> The path to the file to open. </param>
-        /// <returns> An interpreter instance. </returns>
-        public static Interpreter GetInterpreterFromPath(string filePath)
-        {
-            if (File.Exists(filePath))
-            {
-                return GetInterpreter(new StreamReader(new FileStream(filePath, FileMode.Open)));
-            }
-            else
-            {
-                throw new FileNotFoundException("File Path Invalid");
-            }
-        }
-
-        /// <summary>
-        /// Get an interpreter from text.
-        /// </summary>
-        /// <param name="text"> The text to interpret. </param>
-        /// <returns> An interpreter instance. </returns>
-        public static Interpreter GetInterpreterFromText(string text)
-        {
-            if (text != null)
-            {
-                return GetInterpreter(new StringReader(text));
-            }
-            else
-            {
-                throw new ArgumentNullException("Text is null");
             }
         }
 

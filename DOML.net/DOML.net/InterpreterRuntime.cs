@@ -135,6 +135,28 @@ namespace DOML.ByteCode
         /// <summary>
         /// Pops a stack value.
         /// </summary>
+        /// <param name="result"> The result to set if peeking completed. </param>
+        /// <returns> Returns false if it failed in finding a value, i.e. nothing to pop, or object was an invalid type. </returns>
+        public bool Pop(out object result)
+        {
+            // Not entirely sure if we should build off 'peek' but eh?
+            if (Peek(out result))
+            {
+                // Set the index to null, to make sure that if something tried to pop it off again
+                // It would error out (IF they tried), and move pointer down.
+                stack[stackPtr--] = null;
+                return true;
+            }
+            else
+            {
+                // @TODO: Add error log if we remove the peek code.
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Pops a stack value.
+        /// </summary>
         /// <typeparam name="T"> The type expecting from the stack. </typeparam>
         /// <param name="result"> The result to set if peeking completed. </param>
         /// <returns> Returns false if it failed in finding a value, i.e. nothing to pop, or object was an invalid type. </returns>
@@ -155,6 +177,27 @@ namespace DOML.ByteCode
             }
         }
 
+        /// <summary>
+        /// Pops a stack value with no return value.
+        /// </summary>
+        /// <typeparam name="T"> The type expecting from the stack. </typeparam>
+        /// <param name="result"> The result to set if peeking completed. </param>
+        /// <returns> Returns false if it failed in finding a value, i.e. nothing to pop, or object was an invalid type. </returns>
+        public bool PopWithNoReturn()
+        {
+            if (stackPtr >= 0 && stack[stackPtr] != null)
+            {
+                // Set the index to null, to make sure that if something tried to pop it off again
+                stack[stackPtr--] = null;
+                return true;
+            }
+            else
+            {
+                Log.Error("PopWithNoReturn failed", false);
+                return false;
+            }
+        }
+
         public bool TopIsOfType<T>(out bool result)
         {
             if (stackPtr >= 0 && stack[stackPtr] != null)
@@ -165,6 +208,21 @@ namespace DOML.ByteCode
             else
             {
                 result = false;
+                return false;
+            }
+        }
+
+        public bool Peek(out object result)
+        {
+            if (stackPtr >= 0 && stack[stackPtr] != null)
+            {
+                result = stack[stackPtr];
+                return true;
+            }
+            else
+            {
+                Log.Error("Nothing to pop off stack, or wanting to pop off object as an invalid type.", false);
+                result = null;
                 return false;
             }
         }
@@ -184,7 +242,7 @@ namespace DOML.ByteCode
             }
             else
             {
-                Log.Error("Nothing to pop off stack, or wanting to pop off object as an invalid type.");
+                Log.Error("Nothing to pop off stack, or wanting to pop off object as an invalid type.", false);
                 result = default(T);
                 return false;
             }
@@ -275,6 +333,26 @@ namespace DOML.ByteCode
         }
 
         /// <summary>
+        /// Pops top object unsafely.
+        /// </summary>
+        /// <returns> The popped object. </returns>
+        /// <remarks> Compared to <see cref="Unsafe_Pop{T}"/> it won't perform any casts. </remarks>
+        public object Unsafe_Pop()
+        {
+            object temp = Unsafe_Peek();
+            stack[stackPtr--] = null;
+            return temp;
+        }
+
+        /// <summary>
+        /// Pops the top object without returning.
+        /// </summary>
+        public void Unsafe_Pop_NoReturn()
+        {
+            stack[stackPtr--] = null;
+        }
+
+        /// <summary>
         /// Unsafe implementation, doesn't perform any checks.
         /// Mainly here for the interpreter to run if it can verify that the bytecode will perform all checks.
         /// Will pop a value off the stack.
@@ -289,6 +367,11 @@ namespace DOML.ByteCode
             T temp = Unsafe_Peek<T>();
             stack[stackPtr--] = null;
             return temp;
+        }
+
+        public object Unsafe_Peek()
+        {
+            return stack[stackPtr];
         }
 
         /// <summary>

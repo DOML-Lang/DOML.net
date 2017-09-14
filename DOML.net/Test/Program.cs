@@ -65,7 +65,7 @@ namespace ConsoleApp1
             @ Test = System.Color ... // Comment
             ;      .RGB(Normalised) = 0.5, 0.25, 0.1,
             ;      .RGB             = Test.RGB
-            ").Emit(new ByteCodeWriter(Directory.GetCurrentDirectory() + "\\Test.odoml", false), true, true);
+            ").Emit(Directory.GetCurrentDirectory() + "\\Test.odoml", false, true);
 
                 Console.Read();
             }

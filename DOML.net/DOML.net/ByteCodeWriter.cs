@@ -21,7 +21,7 @@ namespace DOML.ByteCode
             Parameter = parameter;
         }
 
-        public Instruction(BaseInstruction opcode, object parameter)
+        public Instruction(Opcodes opcode, object parameter)
         {
             OpCode = (byte)opcode;
             Parameter = parameter;
@@ -52,68 +52,68 @@ namespace DOML.ByteCode
         {
             if (withComment)
             {
-                writer.WriteLine("{0,-10} {1,-30} ; {2,10}", GetInstructionName((BaseInstruction)instruction.OpCode), GetParameterText(instruction).Trim(), GetCommentEmit(instruction));
+                writer.WriteLine("{0,-10} {1,-30} ; {2,10}", GetInstructionName((Opcodes)instruction.OpCode), GetParameterText(instruction).Trim(), GetCommentEmit(instruction));
             }
             else
             {
-                writer.WriteLine("{0,-10} {1,-30}", GetInstructionName((BaseInstruction)instruction.OpCode), GetParameterText(instruction));
+                writer.WriteLine("{0,-10} {1,-30}", GetInstructionName((Opcodes)instruction.OpCode), GetParameterText(instruction));
             }
         }
 
         public string GetCommentEmit(Instruction instruction)
         {
-            switch ((BaseInstruction)instruction.OpCode)
+            switch ((Opcodes)instruction.OpCode)
             {
-            case BaseInstruction.NOP:
+            case Opcodes.NOP:
                 return $"Deliberate void instruction";
-            case BaseInstruction.PANIC:
+            case Opcodes.PANIC:
                 return $"Panic if top value equals {GetParameterText(instruction)}";
-            case BaseInstruction.COMMENT:
+            case Opcodes.COMMENT:
                 return $"USER COMMENT";
-            case BaseInstruction.MAKE_SPACE:
+            case Opcodes.MAKE_SPACE:
                 return $"Reserves {GetParameterText(instruction)} space" + ((int)instruction.Parameter != 1 ? "s" : "") + " on the stack.";
-            case BaseInstruction.MAKE_REG:
+            case Opcodes.MAKE_REG:
                 return $"Reserves {GetParameterText(instruction)} space" + ((int)instruction.Parameter != 1 ? "s" : "") + " on the register.";
 
-            case BaseInstruction.SET:
+            case Opcodes.SET:
                 return $"Runs the {GetParameterText(instruction)} function";
-            case BaseInstruction.COPY:
+            case Opcodes.COPY:
                 return $"Copies top value {GetParameterText(instruction)} time" + ((int)instruction.Parameter != 1 ? "s" : "") + ", aka a peek and push";
-            case BaseInstruction.CLEAR:
+            case Opcodes.CLEAR:
                 return $"Clears entire stack";
-            case BaseInstruction.CLEAR_REG:
+            case Opcodes.CLEAR_REG:
                 return $"Clears all registers";
-            case BaseInstruction.REG_OBJ:
+            case Opcodes.REG_OBJ:
                 return $"Registers top object to index {GetParameterText(instruction)} after popping it off the stack";
-            case BaseInstruction.UNREG_OBJ:
+            case Opcodes.UNREG_OBJ:
                 return $"Unregisters object at index {GetParameterText(instruction)}";
 
-            case BaseInstruction.PUSH_OBJ:
+            case Opcodes.PUSH_OBJ:
                 return $"Pushes object in register ID: {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_INT:
+            case Opcodes.PUSH_INT:
                 return $"Pushes long integer {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_NUM:
+            case Opcodes.PUSH_NUM:
                 return $"Pushes double {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH_STR:
+            case Opcodes.PUSH_STR:
                 return $"Pushes string \"{GetParameterText(instruction)}\" onto the stack";
-            case BaseInstruction.PUSH_CHAR:
+            case Opcodes.PUSH_CHAR:
                 return $"Pushes character \'{GetParameterText(instruction)}\' onto the stack";
-            case BaseInstruction.PUSH_BOOL:
+            case Opcodes.PUSH_BOOL:
                 return $"Pushes boolean {GetParameterText(instruction)} onto the stack";
-            case BaseInstruction.PUSH:
+            case Opcodes.PUSH:
                 return $"Performs an unsafe push, pushing {GetParameterText(instruction)} onto the stack regardless of its type";
-            case BaseInstruction.CALL:
+            case Opcodes.CALL:
                 return $"Performs a getter call on {GetParameterText(instruction)} and pushes the values onto the stack";
-            case BaseInstruction.NEW:
+            case Opcodes.NEW:
                 return $"Performs a constructor call on {GetParameterText(instruction)} and pushes the new object onto the stack";
-            case BaseInstruction.POP:
+            case Opcodes.POP:
                 return $"Pops top object off the stack {GetParameterText(instruction)} time" + ((int)instruction.Parameter != 1 ? "s" : "");
 
-            case BaseInstruction.COMP_MAX:
+            case Opcodes.COMP_MAX:
                 return $"Pushes true onto the stack if the max stack size is less than {GetParameterText(instruction)} else it'll push false";
-            case BaseInstruction.COMP_SIZE:
+            case Opcodes.COMP_SIZE:
                 return $"Pushes true onto the stack if the current stack size is less than {GetParameterText(instruction)} else it'll push false";
-            case BaseInstruction.COMP_REG:
+            case Opcodes.COMP_REG:
                 return $"Pushes true onto the stack if the current register size is less than {GetParameterText(instruction)} else it'll push false";
 
             default:
@@ -122,9 +122,9 @@ namespace DOML.ByteCode
             }
         }
 
-        public string GetInstructionName(BaseInstruction instruction)
+        public string GetInstructionName(Opcodes instruction)
         {
-            if (instruction == BaseInstruction.COMMENT) return ";"; // This is just so it well 1) looks nicer and 2) is more inline with the spec
+            if (instruction == Opcodes.COMMENT) return ";"; // This is just so it well 1) looks nicer and 2) is more inline with the spec
             string lower = instruction.ToString().ToLower();
             return lower.Contains("_") ? lower.Replace("_", "") : lower;
         }
@@ -141,15 +141,15 @@ namespace DOML.ByteCode
 
         private string GetParameterText(Instruction instruction)
         {
-            switch ((BaseInstruction)instruction.OpCode)
+            switch ((Opcodes)instruction.OpCode)
             {
-            case BaseInstruction.PUSH_STR:
+            case Opcodes.PUSH_STR:
                 return '"' + instruction.Parameter.ToString() + '"';
-            case BaseInstruction.PUSH_CHAR:
+            case Opcodes.PUSH_CHAR:
                 return "'" + instruction.Parameter.ToString() + "'";
-            case BaseInstruction.SET:
-            case BaseInstruction.NEW:
-            case BaseInstruction.CALL:
+            case Opcodes.SET:
+            case Opcodes.NEW:
+            case Opcodes.CALL:
                 return instruction.Parameter.ToString().Split(' ')[1];
             default:
                 return instruction.Parameter.ToString();
