@@ -1,22 +1,43 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using DOML;
-using DOML.ByteCode;
+using DOML.IR;
 using DOML.Logger;
+using StaticBindings;
 
-namespace ConsoleApp1
+namespace Test
 {
     namespace UnitTests
     {
-        public struct Colour
+        public class Colour
         {
             public float R, G, B;
+
+            public void SetRGB(float R, float G, float B)
+            {
+                this.R = R;
+                this.G = G;
+                this.B = B;
+            }
         }
 
-        class Program
+        public class Program
         {
-            static void Main(string[] args)
+            private static List<Colour> Colours = new List<Colour>();
+
+            public static void Main(string[] args)
             {
+                Console.SetWindowSize((int)(Console.LargestWindowWidth / 1.5f), (int)(Console.LargestWindowHeight / 1.5f));
+
+                if (Directory.Exists(Directory.GetCurrentDirectory() + "/StaticBindings") == false)
+                    Directory.CreateDirectory(Directory.GetCurrentDirectory() + "/StaticBindings");
+
+                CreateBindings.DirectoryPath = Directory.GetCurrentDirectory() + "/StaticBindings";
+                CreateBindings.Create<Colour>("System");
+
+                return;
+
                 Log.LogHandler += Log_LogHandler;
 
                 Action<InterpreterRuntime> Set_RGB = (InterpreterRuntime runtime) =>
@@ -46,7 +67,9 @@ namespace ConsoleApp1
 
                 InstructionRegister.RegisterConstructor("System.Color", (InterpreterRuntime runtime) =>
                 {
-                    if (!runtime.Push(new Colour(), true))
+                    Colour colour = new Colour();
+                    Colours.Add(colour);
+                    if (!runtime.Push(colour, true))
                     {
                         Log.Error("Creation failed");
                     }
@@ -61,11 +84,12 @@ namespace ConsoleApp1
                             Log.Error("Pops failed");
                 });
 
-                Parser.GetInterpreterFromText(@"
+                TestDOML.RunStringTest(@"
             @ Test = System.Color ... // Comment
             ;      .RGB(Normalised) = 0.5, 0.25, 0.1,
-            ;      .RGB             = Test.RGB
-            ").Emit(Directory.GetCurrentDirectory() + "\\Test.odoml", false, true);
+            ", 100, Config.NONE);
+
+                //Colours.ForEach(y => Log.Info($"Colour RGB: {y.R} {y.G} {y.B}"));
 
                 Console.Read();
             }
@@ -78,7 +102,7 @@ namespace ConsoleApp1
                 }
                 else
                 {
-                    Console.WriteLine(message + ": " + type);
+                    Console.WriteLine(type + ": " + message);
                 }
             }
         }

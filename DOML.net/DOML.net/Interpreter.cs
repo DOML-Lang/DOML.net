@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Text;
 using DOML.Logger;
 
-namespace DOML.ByteCode
+namespace DOML.IR
 {
     /// <summary>
     /// Opcodes.
@@ -186,7 +186,7 @@ namespace DOML.ByteCode
         /// <summary>
         /// The runtime of this interpreter instance.
         /// </summary>
-        private InterpreterRuntime Runtime;
+        public readonly InterpreterRuntime Runtime;
 
         /// <summary>
         /// Create a new interpreter instance.
@@ -230,7 +230,7 @@ namespace DOML.ByteCode
         /// </summary>
         /// <param name="writer"> The writer to write to. </param>
         /// <param name="withLineComments"> Add line comments. </param>
-        public void Emit(ByteCodeWriter writer, bool withLineComments)
+        public void Emit(IRWriter writer, bool withLineComments)
         {
             writer.WriteHeader();
 
@@ -242,10 +242,12 @@ namespace DOML.ByteCode
                 }
                 else
                 {
-                    Log.Error("Invalid instruction: " + Instructions[i].OpCode);
+                    Log.Error("Invalid instruction: " + Instructions[i].OpCode, false);
+                    break;
                 }
-                break;
             }
+
+            Log.Info("Emitted IR", false);
         }
 
         /// <summary>
@@ -256,7 +258,7 @@ namespace DOML.ByteCode
         /// <param name="withLineComments"> Write line comments. </param>
         public void Emit(string filePath, bool append, bool withLineComments)
         {
-            using (ByteCodeWriter writer = new ByteCodeWriter(filePath, append))
+            using (IRWriter writer = new IRWriter(filePath, append))
             {
                 Emit(writer, withLineComments);
             }

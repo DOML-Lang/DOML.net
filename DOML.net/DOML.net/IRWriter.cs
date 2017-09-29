@@ -4,7 +4,7 @@ using System.Text;
 using System.IO;
 using DOML.Logger;
 
-namespace DOML.ByteCode
+namespace DOML.IR
 {
     /// <summary>
     /// An instruction consists of just an opcode
@@ -28,17 +28,22 @@ namespace DOML.ByteCode
         }
     }
 
-    public class ByteCodeWriter : IDisposable
+    public class IRWriter : IDisposable
     {
-        private StreamWriter writer;
+        private TextWriter writer;
 
-        public ByteCodeWriter(string filePath, bool append)
+        public IRWriter(string filePath, bool append)
         {
             FileStream stream = File.Exists(filePath) ? File.Open(filePath, FileMode.Truncate) : new FileStream(filePath, append ? FileMode.Append : FileMode.Create);
             writer = new StreamWriter(stream);
         }
 
-        ~ByteCodeWriter()
+        public IRWriter(StringBuilder resultText)
+        {
+            writer = new StringWriter(resultText);
+        }
+
+        ~IRWriter()
         {
             Finish();
         }

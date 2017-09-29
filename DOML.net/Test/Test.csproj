@@ -3,11 +3,13 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp1.0</TargetFramework>
-    <StartupObject>ConsoleApp1.UnitTests.Program</StartupObject>
+    <StartupObject>Test.UnitTests.Program</StartupObject>
+    <Configurations>Debug;Release;Test</Configurations>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DOML.net\DOML.net.csproj" />
+    <ProjectReference Include="..\StaticBinding\StaticBindings.csproj" />
   </ItemGroup>
 
 </Project>

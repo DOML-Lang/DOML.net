@@ -1,7 +1,7 @@
 ﻿using System;
 using DOML.Logger;
 
-namespace DOML.ByteCode
+namespace DOML.IR
 {
     /// <summary>
     /// This controls the runtime.
@@ -15,7 +15,7 @@ namespace DOML.ByteCode
     {
         private object[] objectRegisters;
         private object[] stack;
-        private int stackPtr; // This is where we are 'up to' and the stack is, where as stack.length is the actual length of the vm stack
+        private int stackPtr = -1; // This is where we are 'up to' and the stack is, where as stack.length is the actual length of the vm stack
 
         public int CurrentStackSize => stackPtr + 1;
 
@@ -33,8 +33,9 @@ namespace DOML.ByteCode
         /// <remarks> More of a check to see if we need to resize registers. </remarks>
         public bool ReserveRegister(int space)
         {
-            if (objectRegisters.Length < space)
+            if (objectRegisters == null || space > objectRegisters.Length)
             {
+                // Resize array
                 objectRegisters = new object[space];
                 return true;
             }
@@ -55,7 +56,7 @@ namespace DOML.ByteCode
             if (index < objectRegisters.Length)
             {
                 obj = objectRegisters[index];
-                return false;
+                return true;
             }
             else
             {
@@ -75,7 +76,7 @@ namespace DOML.ByteCode
             if (index < objectRegisters.Length)
             {
                 objectRegisters[index] = obj;
-                return false;
+                return true;
             }
             else
             {
@@ -101,6 +102,7 @@ namespace DOML.ByteCode
         /// </summary>
         /// <param name="value"> The value to push onto the stack. </param>
         /// <returns> True if value could be pushed onto stack. </returns>
+        /// <remarks> Really should bound primatives. </remarks>
         public bool Push(object value, bool reserveIfNoSpace)
         {
             // >= because stack pointer is 0 indexed
@@ -235,10 +237,24 @@ namespace DOML.ByteCode
         /// <returns> Returns false if it failed in finding a value, i.e. nothing to peek, or object was an invalid type. </returns>
         public bool Peek<T>(out T result)
         {
-            if (stackPtr >= 0 && stack[stackPtr] != null && stack[stackPtr] is T)
+            if (stackPtr >= 0 && stack[stackPtr] != null)
             {
-                result = (T)stack[stackPtr];
-                return true;
+                if (stack[stackPtr] is T)
+                {
+                    result = (T)stack[stackPtr];
+                    return true;
+                }
+                else if (stack[stackPtr] is IConvertible)
+                {
+                    result = (T)Convert.ChangeType(stack[stackPtr], typeof(T));
+                    return true;
+                }
+                else
+                {
+                    Log.Error("Type doesn't match top value, and not convertible to it.");
+                    result = default(T);
+                    return false;
+                }
             }
             else
             {
@@ -256,7 +272,7 @@ namespace DOML.ByteCode
         /// <remarks> More of a check to see if we need to resize array. </remarks>
         public bool ReserveSpace(int space)
         {
-            if (space > stack.Length)
+            if (stack == null || space > stack.Length)
             {
                 // Resize array
                 stack = new object[space];
@@ -270,10 +286,14 @@ namespace DOML.ByteCode
 
         public void ClearSpace()
         {
-            // Currently same as unsafe??
-            // I don't really understand how this could be unsafe??
-            stack = new object[stack.Length];
-            stackPtr = 0;
+            if (stack != null)
+            {
+                // Currently same as unsafe??
+                // I don't really understand how this could be unsafe??
+                stack = new object[stack.Length];
+            }
+
+            stackPtr = -1;
         }
 
         public void ClearRegisters()
@@ -369,9 +389,32 @@ namespace DOML.ByteCode
             return temp;
         }
 
+        /// <summary>
+        /// Unsafe implementation, doesn't perform any checks.
+        /// Mainly here for the interpreter to run if it can verify that the bytecode will perform all checks.
+        /// Will pop a value off the stack.
+        /// The quick pop will not do a convert.changetype.
+        /// </summary>
+        /// <typeparam name="T"> The type to pop. </typeparam>
+        /// <returns> The value in type T. </returns>
+        /// <remarks> Will throw a bunch of errors if you do something badly wrong. </remarks>
+        public T Unsafe_QuickPop<T>()
+        {
+            // Again as with the safe code this should be avoided??
+            // It'll become inlined anyway??
+            T temp = Unsafe_QuickPeek<T>();
+            stack[stackPtr--] = null;
+            return temp;
+        }
+
         public object Unsafe_Peek()
         {
             return stack[stackPtr];
+        }
+
+        public T Unsafe_Peek<T>()
+        {
+            return (T)Convert.ChangeType(stack[stackPtr], typeof(T));
         }
 
         /// <summary>
@@ -382,7 +425,7 @@ namespace DOML.ByteCode
         /// <typeparam name="T"> The type to peek. </typeparam>
         /// <returns> The value in type T. </returns>
         /// <remarks> Will throw a bunch of errors if you do something badly wrong. </remarks>
-        public T Unsafe_Peek<T>()
+        public T Unsafe_QuickPeek<T>()
         {
             return (T)stack[stackPtr];
         }
@@ -390,7 +433,7 @@ namespace DOML.ByteCode
         public void Unsafe_ClearSpace()
         {
             stack = new object[stack.Length];
-            stackPtr = 0;
+            stackPtr = -1;
         }
 
         public void Unsafe_ClearRegisters()

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using DOML.Logger;
 
-namespace DOML.ByteCode
+namespace DOML.IR
 {
     /// <summary>
     /// A register of all the instructions.
@@ -20,7 +20,6 @@ namespace DOML.ByteCode
         /// Either amount of parameters or amount of return variables.
         /// </summary>
         internal static Dictionary<string, int> SizeOf { get; } = new Dictionary<string, int>();
-
 
         /// <summary>
         /// Register a getter function.

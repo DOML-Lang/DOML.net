@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using DOML.ByteCode;
+using DOML.IR;
 using DOML.Logger;
 
 namespace DOML
@@ -69,17 +69,10 @@ namespace DOML
 
         private static bool Advance(TextReader reader, int amount)
         {
-            if (amount <= 0)
-            {
-                Log.Error("Invalid advancement amount", true);
-                return false;
-            }
+            for (; amount > 1; amount--)
+                reader.Read();
 
-            int last = -1;
-
-            for (; amount > 0; amount--)
-                last = reader.Read();
-
+            int last = reader.Read();
             currentCharacter = (char)last;
             return last >= 0;
         }
@@ -245,7 +238,6 @@ namespace DOML
             }
 
             // Handle values
-            Instruction? value;
             int values = 0;
 
             do
@@ -296,8 +288,9 @@ namespace DOML
             currentVariable = null;
             nextRegister = 0;
             maxSpaces = 0;
-            Instructions.Add(new Instruction(Opcodes.MAKE_SPACE, null)); // To be set at the end - ReserveSpace
-            Instructions.Add(new Instruction(Opcodes.MAKE_REG, null)); // To be set at the end - ReserveRegisters
+
+            Instructions.Add(new Instruction()); // To be set at the end - ReserveSpace
+            Instructions.Add(new Instruction()); // To be set at the end - ReserveRegisters
 
             while (currentCharacter == '@' || currentCharacter == ';' || Advance(reader, 1))
             {
@@ -522,14 +515,10 @@ namespace DOML
                         return false;
                     }
                 }
-                else if (baseN == 2 && (currentCharacter != '0' || currentCharacter != '1'))
-                    break;
-                else if (char.IsDigit(currentCharacter) == false && baseN != 16)
-                    break;
-                else if (baseN == 7 && (currentCharacter > '7'))
-                    break;
-                else if (baseN == 16 && (('a' <= currentCharacter) && (currentCharacter <= 'f') || ('A' <= currentCharacter) && (currentCharacter <= 'F')) == false)
-                    break;
+                else if (baseN == 2 && (currentCharacter != '0' || currentCharacter != '1')) break;
+                else if (char.IsDigit(currentCharacter) == false && baseN != 16) break;
+                else if (baseN == 7 && (currentCharacter > '7')) break;
+                else if (baseN == 16 && (('a' <= currentCharacter) && (currentCharacter <= 'f') || ('A' <= currentCharacter) && (currentCharacter <= 'F')) == false) break;
                 else if (char.IsDigit(currentCharacter) == false)
                 {
                     Log.Error("Invalid number");
@@ -564,19 +553,13 @@ namespace DOML
                 if (currentCharacter == '*' && (char)reader.Peek() == '/')
                 {
                     blockCommentNesting--;
-                    Advance(reader, 1); // consume '/'
+                    Advance(reader, 1); // consume '*' and begin on '/'
                     Instructions.Add(new Instruction(Opcodes.COMMENT, comment.ToString()));
                 }
-
-                if (currentCharacter == '/')
+                else if (currentCharacter == '/')
                 {
                     char next = (char)reader.Peek();
-                    if (next == '/' && blockCommentNesting == 0)
-                    {
-                        Advance(reader, 1);
-                        Instructions.Add(new Instruction(Opcodes.COMMENT, AdvanceLine(reader)));
-                    }
-                    else if (next == '*')
+                    if (next == '*')
                     {
                         if (blockCommentNesting == 0)
                         {
@@ -586,6 +569,15 @@ namespace DOML
 
                         blockCommentNesting++;
                         Advance(reader, 1); // consume '*'
+                    }
+                    else if (currentCharacter == '/' && reader.Peek() == '/' && blockCommentNesting == 0)
+                    {
+                        Advance(reader, 2);
+                        Instructions.Add(new Instruction(Opcodes.COMMENT, AdvanceLine(reader)));
+                    }
+                    else if (blockCommentNesting > 0)
+                    {
+                        comment.Append(currentCharacter);
                     }
                 }
                 else if (blockCommentNesting > 0)
@@ -598,7 +590,7 @@ namespace DOML
                 }
             } while (Advance(reader, 1));
 
-            if (blockCommentNesting > 0)
+            if (blockCommentNesting != 0)
             {
                 Log.Error($"Didn't finish block comment starting at Line: /{StartingLine}, Column: /{StartingColumn}", true);
                 return;

@@ -9,7 +9,3 @@ pushnum    0.25                           ; Pushes double 0.25 onto the stack
 pushnum    0.1                            ; Pushes double 0.1 onto the stack
 pushobj    0                              ; Pushes object in register ID: 0 onto the stack
 set        System.Color::RGB.Normalised   ; Runs the System.Color::RGB.Normalised function
-pushobj    0                              ; Pushes object in register ID: 0 onto the stack
-call       System.Color::RGB              ; Performs a getter call on System.Color::RGB and pushes the values onto the stack
-pushobj    0                              ; Pushes object in register ID: 0 onto the stack
-set        System.Color::RGB              ; Runs the System.Color::RGB function
