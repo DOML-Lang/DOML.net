@@ -1,11 +1,17 @@
-﻿using System;
+﻿#region License
+// ====================================================
+// Team DOML Copyright(C) 2017 Team DOML
+// This program comes with ABSOLUTELY NO WARRANTY; This is free software, 
+// and you are welcome to redistribute it under certain conditions; See 
+// file LICENSE, which is part of this source code package, for details.
+// ====================================================
+#endregion
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Text;
-using DOML;
-using DOML.IR;
+using System.Reflection; // While this dependency is 'fine' I would argue we should actively aim to not need it.
 
 namespace StaticBindings
 {

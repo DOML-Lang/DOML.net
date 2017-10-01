@@ -1,7 +1,14 @@
-﻿using System;
+﻿#region License
+// ====================================================
+// Team DOML Copyright(C) 2017 Team DOML
+// This program comes with ABSOLUTELY NO WARRANTY; This is free software, 
+// and you are welcome to redistribute it under certain conditions; See 
+// file LICENSE, which is part of this source code package, for details.
+// ====================================================
+#endregion
+
+using System;
 using System.Collections.Generic;
-using System.Reflection;
-using System.Text;
 using DOML.Logger;
 
 namespace DOML.IR
@@ -209,19 +216,9 @@ namespace DOML.IR
             for (int i = 0; i < Instructions.Count; i++)
             {
                 if (safe)
-                {
-                    if (Instructions[i].OpCode >= (byte)Opcodes.COUNT_OF_INSTRUCTIONS)
-                    {
-                        Log.Error("Opcode not in valid range");
-                        return;
-                    }
-
                     HandleSafeInstruction(Instructions[i]);
-                }
                 else
-                {
                     HandleUnsafeInstruction(Instructions[i]);
-                }
             }
         }
 

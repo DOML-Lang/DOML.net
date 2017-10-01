@@ -1,6 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿#region License
+// ====================================================
+// Team DOML Copyright(C) 2017 Team DOML
+// This program comes with ABSOLUTELY NO WARRANTY; This is free software, 
+// and you are welcome to redistribute it under certain conditions; See 
+// file LICENSE, which is part of this source code package, for details.
+// ====================================================
+#endregion
+
+using System;
 
 namespace DOML.Logger
 {
