@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reflection;
 using DOML.Logger;
 
 namespace DOML.IR
@@ -33,7 +34,7 @@ namespace DOML.IR
         /// <remarks> More of a check to see if we need to resize registers. </remarks>
         public bool ReserveRegister(int space)
         {
-            if (objectRegisters == null || space > objectRegisters.Length)
+            if (objectRegisters == null || space > RegisterSize)
             {
                 // Resize array
                 objectRegisters = new object[space];
@@ -53,7 +54,7 @@ namespace DOML.IR
         /// <returns> if the index < length. </returns>
         public bool GetObject(int index, out object obj)
         {
-            if (index < objectRegisters.Length)
+            if (index < RegisterSize)
             {
                 obj = objectRegisters[index];
                 return true;
@@ -73,7 +74,7 @@ namespace DOML.IR
         /// <returns> if the index < length. </returns>
         public bool SetObject(object obj, int index)
         {
-            if (index < objectRegisters.Length)
+            if (index < RegisterSize)
             {
                 objectRegisters[index] = obj;
                 return true;
@@ -86,7 +87,7 @@ namespace DOML.IR
 
         public bool UnsetObject(int index)
         {
-            if (index < objectRegisters.Length)
+            if (index < RegisterSize)
             {
                 objectRegisters[index] = null;
                 return false;
@@ -106,17 +107,17 @@ namespace DOML.IR
         public bool Push(object value, bool reserveIfNoSpace)
         {
             // >= because stack pointer is 0 indexed
-            if (stackPtr >= stack.Length)
+            if (CurrentStackSize > MaxStackSize)
             {
                 if (reserveIfNoSpace)
                 {
+                    int oldLength = MaxStackSize;
                     object[] temp = stack;
-                    stack = new object[stack.Length + 1]; // Increase by one to fill spot
+                    stack = new object[CurrentStackSize]; // Increase by one to fill spot
 
                     Log.Warning("Attempted to push a value onto a stack that was too small, reserving the new space and moving over values");
 
-                    // <= because StackPointer is 0 indexed
-                    for (int i = 0; i <= stackPtr; i++)
+                    for (int i = 0; i < oldLength; i++)
                     {
                         stack[i] = temp[i];
                     }
@@ -187,7 +188,7 @@ namespace DOML.IR
         /// <returns> Returns false if it failed in finding a value, i.e. nothing to pop, or object was an invalid type. </returns>
         public bool PopWithNoReturn()
         {
-            if (stackPtr >= 0 && stack[stackPtr] != null)
+            if (CurrentStackSize > 0 && CurrentStackSize < MaxStackSize && stack[stackPtr] != null)
             {
                 // Set the index to null, to make sure that if something tried to pop it off again
                 stack[stackPtr--] = null;
@@ -202,7 +203,7 @@ namespace DOML.IR
 
         public bool TopIsOfType<T>(out bool result)
         {
-            if (stackPtr >= 0 && stack[stackPtr] != null)
+            if (CurrentStackSize > 0 && CurrentStackSize < MaxStackSize && stack[stackPtr] != null)
             {
                 result = stack[stackPtr] is T;
                 return true;
@@ -216,7 +217,7 @@ namespace DOML.IR
 
         public bool Peek(out object result)
         {
-            if (stackPtr >= 0 && stack[stackPtr] != null)
+            if (CurrentStackSize > 0 && CurrentStackSize < MaxStackSize && stack[stackPtr] != null)
             {
                 result = stack[stackPtr];
                 return true;
@@ -237,16 +238,22 @@ namespace DOML.IR
         /// <returns> Returns false if it failed in finding a value, i.e. nothing to peek, or object was an invalid type. </returns>
         public bool Peek<T>(out T result)
         {
-            if (stackPtr >= 0 && stack[stackPtr] != null)
+            if (CurrentStackSize > 0 && CurrentStackSize < MaxStackSize && stack[stackPtr] != null)
             {
                 if (stack[stackPtr] is T)
                 {
                     result = (T)stack[stackPtr];
                     return true;
                 }
-                else if (stack[stackPtr] is IConvertible)
+                else if (stack[stackPtr] is IConvertible && typeof(T) is IConvertible)
                 {
                     result = (T)Convert.ChangeType(stack[stackPtr], typeof(T));
+                    return true;
+                }
+                else if (typeof(T).GetTypeInfo().IsAssignableFrom(stack[stackPtr].GetType().GetTypeInfo()))
+                {
+                    // Inefficient find a faster way (that hopefully doesn't use reflection
+                    result = (T)stack[stackPtr];
                     return true;
                 }
                 else
@@ -272,7 +279,7 @@ namespace DOML.IR
         /// <remarks> More of a check to see if we need to resize array. </remarks>
         public bool ReserveSpace(int space)
         {
-            if (stack == null || space > stack.Length)
+            if (stack == null || space > MaxStackSize)
             {
                 // Resize array
                 stack = new object[space];
@@ -290,7 +297,7 @@ namespace DOML.IR
             {
                 // Currently same as unsafe??
                 // I don't really understand how this could be unsafe??
-                stack = new object[stack.Length];
+                stack = new object[MaxStackSize];
             }
 
             stackPtr = -1;
@@ -298,7 +305,7 @@ namespace DOML.IR
 
         public void ClearRegisters()
         {
-            objectRegisters = new object[objectRegisters.Length];
+            objectRegisters = new object[RegisterSize];
         }
         #endregion
 
@@ -389,32 +396,9 @@ namespace DOML.IR
             return temp;
         }
 
-        /// <summary>
-        /// Unsafe implementation, doesn't perform any checks.
-        /// Mainly here for the interpreter to run if it can verify that the bytecode will perform all checks.
-        /// Will pop a value off the stack.
-        /// The quick pop will not do a convert.changetype.
-        /// </summary>
-        /// <typeparam name="T"> The type to pop. </typeparam>
-        /// <returns> The value in type T. </returns>
-        /// <remarks> Will throw a bunch of errors if you do something badly wrong. </remarks>
-        public T Unsafe_QuickPop<T>()
-        {
-            // Again as with the safe code this should be avoided??
-            // It'll become inlined anyway??
-            T temp = Unsafe_QuickPeek<T>();
-            stack[stackPtr--] = null;
-            return temp;
-        }
-
         public object Unsafe_Peek()
         {
             return stack[stackPtr];
-        }
-
-        public T Unsafe_Peek<T>()
-        {
-            return (T)Convert.ChangeType(stack[stackPtr], typeof(T));
         }
 
         /// <summary>
@@ -425,7 +409,7 @@ namespace DOML.IR
         /// <typeparam name="T"> The type to peek. </typeparam>
         /// <returns> The value in type T. </returns>
         /// <remarks> Will throw a bunch of errors if you do something badly wrong. </remarks>
-        public T Unsafe_QuickPeek<T>()
+        public T Unsafe_Peek<T>()
         {
             return (T)stack[stackPtr];
         }

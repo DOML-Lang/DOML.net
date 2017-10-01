@@ -1,4 +1,6 @@
-﻿using System;
+﻿#define StaticTest
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using DOML;
@@ -6,41 +8,39 @@ using DOML.IR;
 using DOML.Logger;
 using StaticBindings;
 
-namespace Test
+namespace Test.UnitTests
 {
-    namespace UnitTests
+    public class Colour
     {
-        public class Colour
-        {
-            public float R, G, B;
+        public float R, G, B;
 
-            public void SetRGB(float R, float G, float B)
-            {
-                this.R = R;
-                this.G = G;
-                this.B = B;
-            }
+        public void SetRGB(float R, float G, float B)
+        {
+            this.R = R;
+            this.G = G;
+            this.B = B;
         }
+    }
 
-        public class Program
+    public class Program
+    {
+        private static List<Colour> Colours = new List<Colour>();
+
+        public static void Main(string[] args)
         {
-            private static List<Colour> Colours = new List<Colour>();
+            Console.SetWindowSize((int)(Console.LargestWindowWidth / 1.5f), (int)(Console.LargestWindowHeight / 1.5f));
 
-            public static void Main(string[] args)
-            {
-                Console.SetWindowSize((int)(Console.LargestWindowWidth / 1.5f), (int)(Console.LargestWindowHeight / 1.5f));
+#if StaticTest
+            if (Directory.Exists(Directory.GetCurrentDirectory() + "/StaticBindings") == false)
+                Directory.CreateDirectory(Directory.GetCurrentDirectory() + "/StaticBindings");
 
-                if (Directory.Exists(Directory.GetCurrentDirectory() + "/StaticBindings") == false)
-                    Directory.CreateDirectory(Directory.GetCurrentDirectory() + "/StaticBindings");
+            CreateBindings.DirectoryPath = Directory.GetCurrentDirectory() + "/StaticBindings";
+            CreateBindings.Create<Colour>("System");
+            CreateBindings.CreateFinalFile();
+#else
+            Log.LogHandler += Log_LogHandler;
 
-                CreateBindings.DirectoryPath = Directory.GetCurrentDirectory() + "/StaticBindings";
-                CreateBindings.Create<Colour>("System");
-
-                return;
-
-                Log.LogHandler += Log_LogHandler;
-
-                Action<InterpreterRuntime> Set_RGB = (InterpreterRuntime runtime) =>
+            Action<InterpreterRuntime> Set_RGB = (InterpreterRuntime runtime) =>
                 {
                     if (runtime.Pop(out Colour result))
                     {
@@ -57,7 +57,7 @@ namespace Test
                     }
                 };
 
-                Action<InterpreterRuntime> Get_RGB = (InterpreterRuntime runtime) =>
+            Action<InterpreterRuntime> Get_RGB = (InterpreterRuntime runtime) =>
                 {
                     if (!runtime.Pop(out Colour result) || !runtime.Push(result.R, true) || !runtime.Push(result.G, true) || !runtime.Push(result.B, true))
                     {
@@ -65,45 +65,45 @@ namespace Test
                     }
                 };
 
-                InstructionRegister.RegisterConstructor("System.Color", (InterpreterRuntime runtime) =>
+            InstructionRegister.RegisterConstructor("System.Color", (InterpreterRuntime runtime) =>
+            {
+                Colour colour = new Colour();
+                Colours.Add(colour);
+                if (!runtime.Push(colour, true))
                 {
-                    Colour colour = new Colour();
-                    Colours.Add(colour);
-                    if (!runtime.Push(colour, true))
-                    {
-                        Log.Error("Creation failed");
-                    }
-                });
+                    Log.Error("Creation failed");
+                }
+            });
 
-                InstructionRegister.RegisterSetter("RGB", "System.Color", 3, Set_RGB);
-                InstructionRegister.RegisterGetter("RGB", "System.Color", 3, Get_RGB);
-                InstructionRegister.RegisterSetter("RGB.Normalised", "System.Color", 3, (InterpreterRuntime runtime) =>
-                {
-                    if (runtime.Pop(out Colour result))
-                        if (!runtime.Pop(out result.B) || !runtime.Pop(out result.G) || !runtime.Pop(out result.R))
-                            Log.Error("Pops failed");
-                });
+            InstructionRegister.RegisterSetter("RGB", "System.Color", 3, Set_RGB);
+            InstructionRegister.RegisterGetter("RGB", "System.Color", 3, Get_RGB);
+            InstructionRegister.RegisterSetter("RGB.Normalised", "System.Color", 3, (InterpreterRuntime runtime) =>
+            {
+                if (runtime.Pop(out Colour result))
+                    if (!runtime.Pop(out result.B) || !runtime.Pop(out result.G) || !runtime.Pop(out result.R))
+                        Log.Error("Pops failed");
+            });
 
-                TestDOML.RunStringTest(@"
+            TestDOML.RunStringTest(@"
             @ Test = System.Color ... // Comment
             ;      .RGB(Normalised) = 0.5, 0.25, 0.1,
             ", 100, Config.NONE);
 
-                //Colours.ForEach(y => Log.Info($"Colour RGB: {y.R} {y.G} {y.B}"));
+            //Colours.ForEach(y => Log.Info($"Colour RGB: {y.R} {y.G} {y.B}"));
 
-                Console.Read();
-            }
+            Console.Read();
+#endif
+        }
 
-            private static void Log_LogHandler(string message, DOML.Logger.Type type, bool useLineNumbers)
+        private static void Log_LogHandler(string message, Log.Type type, bool useLineNumbers)
+        {
+            if (useLineNumbers)
             {
-                if (useLineNumbers)
-                {
-                    Console.WriteLine($"{type} at Line/Col: {Parser.CurrentLine}/{Parser.CurrentColumn}; {message}");
-                }
-                else
-                {
-                    Console.WriteLine(type + ": " + message);
-                }
+                Console.WriteLine($"{type} at Line/Col: {Parser.CurrentLine}/{Parser.CurrentColumn}; {message}");
+            }
+            else
+            {
+                Console.WriteLine(type + ": " + message);
             }
         }
     }

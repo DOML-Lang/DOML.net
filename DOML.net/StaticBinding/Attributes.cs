@@ -4,7 +4,7 @@ using System.Text;
 
 namespace StaticBindings
 {
-    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = true)]
     public class DOMLIncludeAttribute : Attribute
     {
         public string RootNamespace { get; private set; }

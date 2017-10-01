@@ -4,15 +4,15 @@ using System.Text;
 
 namespace DOML.Logger
 {
-    public enum Type
-    {
-        INFO,
-        WARNING,
-        ERROR,
-    }
-
     public static class Log
     {
+        public enum Type
+        {
+            INFO,
+            WARNING,
+            ERROR,
+        }
+
         public static bool HandleLogs { get; set; } = true;
 
         /// <summary>
