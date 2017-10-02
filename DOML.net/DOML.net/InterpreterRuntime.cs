@@ -197,7 +197,7 @@ namespace DOML.IR
         /// <returns> Returns false if it failed in finding a value, i.e. nothing to pop, or object was an invalid type. </returns>
         public bool PopWithNoReturn()
         {
-            if (CurrentStackSize > 0 && CurrentStackSize < MaxStackSize && stack[stackPtr] != null)
+            if (CurrentStackSize > 0 && CurrentStackSize <= MaxStackSize && stack[stackPtr] != null)
             {
                 // Set the index to null, to make sure that if something tried to pop it off again
                 stack[stackPtr--] = null;
@@ -212,7 +212,7 @@ namespace DOML.IR
 
         public bool TopIsOfType<T>(out bool result)
         {
-            if (CurrentStackSize > 0 && CurrentStackSize < MaxStackSize && stack[stackPtr] != null)
+            if (CurrentStackSize > 0 && CurrentStackSize <= MaxStackSize && stack[stackPtr] != null)
             {
                 result = stack[stackPtr] is T;
                 return true;
@@ -226,7 +226,7 @@ namespace DOML.IR
 
         public bool Peek(out object result)
         {
-            if (CurrentStackSize > 0 && CurrentStackSize < MaxStackSize && stack[stackPtr] != null)
+            if (CurrentStackSize > 0 && CurrentStackSize <= MaxStackSize && stack[stackPtr] != null)
             {
                 result = stack[stackPtr];
                 return true;
@@ -247,14 +247,14 @@ namespace DOML.IR
         /// <returns> Returns false if it failed in finding a value, i.e. nothing to peek, or object was an invalid type. </returns>
         public bool Peek<T>(out T result)
         {
-            if (CurrentStackSize > 0 && CurrentStackSize < MaxStackSize && stack[stackPtr] != null)
+            if (CurrentStackSize > 0 && CurrentStackSize <= MaxStackSize && stack[stackPtr] != null)
             {
                 if (stack[stackPtr] is T)
                 {
                     result = (T)stack[stackPtr];
                     return true;
                 }
-                else if (stack[stackPtr] is IConvertible && typeof(T) is IConvertible)
+                else if (stack[stackPtr] is IConvertible)
                 {
                     result = (T)Convert.ChangeType(stack[stackPtr], typeof(T));
                     return true;

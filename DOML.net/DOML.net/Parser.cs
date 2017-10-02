@@ -38,10 +38,11 @@ namespace DOML
         /// </summary>
         /// <param name="filePath"> The path to the file to open. </param>
         /// <returns> An interpreter instance. </returns>
-        public static Interpreter GetInterpreterFromPath(string filePath)
+        public static Interpreter GetInterpreterFromPath(string filePath, bool IR = false)
         {
             if (File.Exists(filePath))
-                return GetInterpreter(new StreamReader(new FileStream(filePath, FileMode.Open)));
+                using (StreamReader reader = new StreamReader(new FileStream(filePath, FileMode.Open)))
+                    return GetInterpreter(reader, IR);
             else
                 throw new FileNotFoundException("File Path Invalid");
         }
@@ -51,10 +52,11 @@ namespace DOML
         /// </summary>
         /// <param name="text"> The text to interpret. </param>
         /// <returns> An interpreter instance. </returns>
-        public static Interpreter GetInterpreterFromText(string text)
+        public static Interpreter GetInterpreterFromText(string text, bool IR = false)
         {
             if (text != null)
-                return GetInterpreter(new StringReader(text));
+                using (StringReader reader = new StringReader(text))
+                    return GetInterpreter(reader, IR);
             else
                 throw new ArgumentNullException("Text is null");
         }
@@ -83,6 +85,15 @@ namespace DOML
 
             int last = reader.Read();
             currentCharacter = (char)last;
+
+            if (currentCharacter == '\n')
+            {
+                CurrentLine++;
+                CurrentColumn = 0;
+            }
+            else
+                CurrentColumn++;
+
             return last >= 0;
         }
 
@@ -129,7 +140,7 @@ namespace DOML
         {
             Advance(reader, 1); // eat '@'
             currentVariable = null; // just so the '...' doesn't carry over awkwardly
-            RemoveWhitespacesAndComments(reader);
+            IgnoreWhitespace(reader);
 
             // Parse the creation identifier
             string variableName = ParseIdentifierStatement(reader, string.Empty, new char[]{ '/', '=' }, false, false).ToString();
@@ -138,7 +149,7 @@ namespace DOML
                 return false;
 
             // Add it to register and then remove whitespace
-            RemoveWhitespacesAndComments(reader);
+            IgnoreWhitespace(reader);
             if (currentCharacter != '=')
             {
                 Log.Error($"Missing '=' starting at Line: /{CurrentLine}, Column: /{CurrentColumn}", true);
@@ -146,14 +157,14 @@ namespace DOML
             }
 
             Advance(reader, 1);
-            RemoveWhitespacesAndComments(reader);
+            IgnoreWhitespace(reader);
 
             StringBuilder creationName = ParseIdentifierStatement(reader, "new ", new char[]{ '\n', ';' }, true, false);
             if (creationName == null)
                 // We had a problem so return false, the error will be logged from the parse identifier statement
                 return false;
 
-            RemoveWhitespacesAndComments(reader);
+            IgnoreWhitespace(reader);
             if (currentCharacter == '.' && reader.Peek() == '.')
             {
                 // This is for when the `...` is after the identifier with a space inbetween
@@ -176,7 +187,7 @@ namespace DOML
         private static bool ParseSetStatement(TextReader reader)
         {
             Advance(reader, 1); // eat ';'
-            RemoveWhitespacesAndComments(reader);
+            IgnoreWhitespace(reader);
             CreationObjectInfo objectInfoToPush; // Get the object to push
             string variableName;
             StringBuilder parsed;
@@ -237,7 +248,7 @@ namespace DOML
             }
 
             variableName = parsed.ToString();
-            RemoveWhitespacesAndComments(reader);
+            IgnoreWhitespace(reader);
 
             // Should start with a '='
             if (currentCharacter != '=')
@@ -252,7 +263,7 @@ namespace DOML
             do
             {
                 Advance(reader, 1); // eat '=' or ','
-                RemoveWhitespacesAndComments(reader);
+                IgnoreWhitespace(reader);
                 if (currentCharacter == '@' || currentCharacter == ';' || reader.Peek() <= 0)
                     // This allows you to have a comma at the very end despite being a little hacky
                     break;
@@ -263,7 +274,7 @@ namespace DOML
                     return false;
                 }
 
-                RemoveWhitespacesAndComments(reader);
+                IgnoreWhitespace(reader);
             } while (currentCharacter == ',');
 
             // If we don't have enough values - compile time error
@@ -280,7 +291,6 @@ namespace DOML
 
             // Now push object and then the set command
             Instructions.Add(new Instruction(Opcodes.SET, variableName));
-            RemoveWhitespacesAndComments(reader);
             return true;
         }
 
@@ -289,49 +299,237 @@ namespace DOML
         /// </summary>
         /// <param name="reader"> The reader to read from. </param>
         /// <returns> An interpreter instance. </returns>
-        /// <remarks> No need to dispose the reader yourself. </remarks>
-        private static Interpreter GetInterpreter(TextReader reader)
+        /// <remarks> Remember to dispose the reader if calling this directly. </remarks>
+        public static Interpreter GetInterpreter(TextReader reader, bool IR)
         {
             Instructions.Clear();
-            Registers.Clear();
-            currentVariable = null;
-            nextRegister = 0;
-            maxSpaces = 0;
+            currentCharacter = char.MinValue;
+            StartingColumn = StartingLine = CurrentLine = CurrentColumn = 0;
 
-            Instructions.Add(new Instruction()); // To be set at the end - ReserveSpace
-            Instructions.Add(new Instruction()); // To be set at the end - ReserveRegisters
-
-            while (currentCharacter == '@' || currentCharacter == ';' || Advance(reader, 1))
+            if (IR)
             {
-                // Remove whitespace/comments before first line
-                RemoveWhitespacesAndComments(reader);
-
-                // If we at end of line then just return the interpreter instance
-                if (reader.Peek() < 0)
-                    return new Interpreter(Instructions);
-
-                switch (currentCharacter)
+                // This is relatively efficient, I'm not sold on Enum.TryParse yet though
+                // This is around 100x more efficient then the last one
+                while (currentCharacter == ';' || Advance(reader, 1))
                 {
-                case '@':
-                    if (ParseCreationStatement(reader) == false)
+                    if (char.IsWhiteSpace(currentCharacter)) continue;
+
+                    if (currentCharacter == ';')
+                    {
+                        AdvanceLine(reader);
+                        currentCharacter = char.MinValue;
+                        continue;
+                    }
+
+                    // Get Opcode
+                    StringBuilder builder = new StringBuilder(currentCharacter);
+                    while (Advance(reader, 1) && char.IsWhiteSpace(currentCharacter) == false)
+                    {
+                        builder.Append(char.ToUpper(currentCharacter));
+                    }
+
+                    if (char.IsWhiteSpace(currentCharacter) == false)
+                    {
+                        Log.Error("Invalid Line");
                         return null;
-                    break;
-                case ';':
-                    if (ParseSetStatement(reader) == false)
+                    }
+
+                    // This has to be tested to see how fast it is
+                    if (!Enum.TryParse(builder.ToString(), out Opcodes opcode))
+                    {
+                        Log.Error("Invalid Opcode");
                         return null;
-                    break;
-                default:
-                    // Something went wrong in remove white space or similar so just return null
-                    Log.Error("Invalid character", true);
-                    return null;
+                    }
+
+                    IgnoreWhitespace(reader);
+
+                    if (reader.Peek() < 0)
+                    {
+                        Log.Error("No Parameter");
+                        return null;
+                    }
+
+                    builder.Clear();
+
+                    do
+                    {
+                        builder.Append(currentCharacter);
+                    }
+                    while (Advance(reader, 1) && char.IsWhiteSpace(currentCharacter) == false);
+
+                    if (char.IsWhiteSpace(currentCharacter) == false)
+                    {
+                        Log.Error("Invalid Line");
+                        return null;
+                    }
+
+                    if (!ParseValueForOpCode(opcode, builder.ToString(), out object parameter))
+                    {
+                        Log.Error("Invalid Parameter");
+                        return null;
+                    }
+
+                    Instructions.Add(new Instruction(opcode, parameter));
                 }
+
+                return new Interpreter(Instructions);
+            }
+            else
+            {
+                Registers.Clear();
+                currentVariable = null;
+                nextRegister = 0;
+                maxSpaces = 0;
+
+                Instructions.Add(new Instruction()); // To be set at the end - ReserveSpace
+                Instructions.Add(new Instruction()); // To be set at the end - ReserveRegisters
+
+                while (currentCharacter == '@' || currentCharacter == ';' || Advance(reader, 1))
+                {
+                    // Remove whitespace/comments before first line
+                    ParseComments(reader);
+
+                    // If we at end of line then just return the interpreter instance
+                    if (reader.Peek() < 0)
+                        return new Interpreter(Instructions);
+
+                    switch (currentCharacter)
+                    {
+                    case '@':
+                        if (ParseCreationStatement(reader) == false)
+                            return null;
+                        break;
+                    case ';':
+                        if (ParseSetStatement(reader) == false)
+                            return null;
+                        break;
+                    default:
+                        // Something went wrong in remove white space or similar so just return null
+                        Log.Error("Invalid character", true);
+                        return null;
+                    }
+                }
+
+                Instructions[0] = new Instruction(Opcodes.MAKE_SPACE, maxSpaces);
+                Instructions[1] = new Instruction(Opcodes.MAKE_REG, nextRegister);
             }
 
-            Instructions[0] = new Instruction(Opcodes.MAKE_SPACE, maxSpaces);
-            Instructions[1] = new Instruction(Opcodes.MAKE_REG, nextRegister);
-            reader.Dispose();
-
             return new Interpreter(Instructions);
+        }
+
+        private static bool ParseValueForOpCode(Opcodes opcode, string valueToParse, out object obj)
+        {
+            switch (opcode)
+            {
+            case Opcodes.CLEAR:
+            case Opcodes.CLEAR_REG:
+            case Opcodes.NOP:
+            case Opcodes.COMMENT:
+                obj = valueToParse;
+                return true;
+            case Opcodes.CALL:
+                obj = "get " + valueToParse;
+                return true;
+            case Opcodes.NEW:
+                obj = "new " + valueToParse;
+                return true;
+            case Opcodes.SET:
+                obj = "set " + valueToParse;
+                return true;
+            case Opcodes.PANIC:
+            case Opcodes.PUSH:
+                if (valueToParse[0] == '\'' && valueToParse[valueToParse.Length - 1] == '\'')
+                {
+                    bool result = char.TryParse(valueToParse.Trim('\''), out char temp);
+                    obj = temp;
+                    return result;
+                }
+                else if (valueToParse[0] == '"' && valueToParse[valueToParse.Length - 1] == '"')
+                {
+                    obj = valueToParse.Trim('"');
+                    return true;
+                }
+                else if (valueToParse.Any(x => char.IsDigit(x) || x == '.'))
+                {
+                    if (valueToParse.Contains('.'))
+                    {
+                        bool result = double.TryParse(valueToParse, out double temp);
+                        obj = temp;
+                        return result;
+                    }
+                    else
+                    {
+                        bool result = long.TryParse(valueToParse, out long temp);
+                        obj = temp;
+                        return result;
+                    }
+                }
+                else if (valueToParse == "false" || valueToParse == "true")
+                {
+                    obj = valueToParse == "true";
+                    return true;
+                }
+                else
+                {
+                    obj = null;
+                    return false;
+                }
+            case Opcodes.MAKE_SPACE:
+            case Opcodes.MAKE_REG:
+            case Opcodes.COPY:
+            case Opcodes.REG_OBJ:
+            case Opcodes.UNREG_OBJ:
+            case Opcodes.PUSH_OBJ:
+            case Opcodes.POP:
+            case Opcodes.COMP_MAX:
+            case Opcodes.COMP_SIZE:
+            case Opcodes.COMP_REG:
+                {
+                    bool result = int.TryParse(valueToParse, out int temp);
+                    obj = temp;
+                    return result;
+                }
+            case Opcodes.PUSH_INT:
+                {
+                    bool result = long.TryParse(valueToParse, out long temp);
+                    obj = temp;
+                    return result;
+                }
+            case Opcodes.PUSH_NUM:
+                {
+                    bool result = double.TryParse(valueToParse, out double temp);
+                    obj = temp;
+                    return result;
+                }
+            case Opcodes.PUSH_DEC:
+                {
+                    bool result = decimal.TryParse(valueToParse, out decimal temp);
+                    obj = temp;
+                    return result;
+                }
+            case Opcodes.PUSH_STR:
+                {
+                    obj = valueToParse.Trim('"');
+                    return true;
+                }
+            case Opcodes.PUSH_CHAR:
+                {
+                    bool result = char.TryParse(valueToParse.Trim('\''), out char temp);
+                    obj = temp;
+                    return result;
+                }
+            case Opcodes.PUSH_BOOL:
+                {
+                    bool result = bool.TryParse(valueToParse, out bool temp);
+                    obj = temp;
+                    return result;
+                }
+            case Opcodes.COUNT_OF_INSTRUCTIONS:
+            default:
+                obj = null;
+                Log.Error("Invalid Instruction");
+                return false;
+            }
         }
 
         private static bool ParseValue(TextReader reader, ref int values)
@@ -552,15 +750,21 @@ namespace DOML
             return true;
         }
 
-        private static void RemoveWhitespacesAndComments(TextReader reader)
+        private static void ParseComments(TextReader reader)
         {
             int blockCommentNesting = 0;
             StringBuilder comment = new StringBuilder();
 
-            do
+            while (Advance(reader, 1))
             {
                 if (currentCharacter == '*' && (char)reader.Peek() == '/')
                 {
+                    if (blockCommentNesting == 0)
+                    {
+                        Log.Error("Didn't start comment block");
+                        return;
+                    }
+
                     blockCommentNesting--;
                     Advance(reader, 1); // consume '*' and begin on '/'
                     Instructions.Add(new Instruction(Opcodes.COMMENT, comment.ToString()));
@@ -595,14 +799,24 @@ namespace DOML
                 }
                 else if (char.IsWhiteSpace(currentCharacter) == false)
                 {
-                    break; // no comments starting so we can break
+                    // We don't need to check the last condition since we know that blockCommentNesting <= 0
+                    // If it is < 0 then we check that on that spot rather than towards end.
+                    return;
                 }
-            } while (Advance(reader, 1));
+            }
 
             if (blockCommentNesting != 0)
             {
                 Log.Error($"Didn't finish block comment starting at Line: /{StartingLine}, Column: /{StartingColumn}", true);
                 return;
+            }
+        }
+
+        private static void IgnoreWhitespace(TextReader reader)
+        {
+            while (char.IsWhiteSpace(currentCharacter))
+            {
+                Advance(reader, 1);
             }
         }
 

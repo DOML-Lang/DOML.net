@@ -1,0 +1,11 @@
+; This is the resulting bytecode from the file given
+MAKE_SPACE      4                                                  ; Reserves 4 spaces on the stack.
+MAKE_REG        1                                                  ; Reserves 1 space on the register.
+NEW             System.Color                                       ; Performs a constructor call on System.Color and pushes the new object onto the stack
+REG_OBJ         0                                                  ; Registers top object to index 0 after popping it off the stack
+COMMENT         Comment                                            ; USER COMMENT
+PUSH_NUM        0.5                                                ; Pushes double 0.5 onto the stack
+PUSH_NUM        0.25                                               ; Pushes double 0.25 onto the stack
+PUSH_NUM        0.1                                                ; Pushes double 0.1 onto the stack
+PUSH_OBJ        0                                                  ; Pushes object in register ID: 0 onto the stack
+SET             System.Color::RGB.Normalised                       ; Runs the System.Color::RGB.Normalised function

@@ -6,12 +6,13 @@
 // file LICENSE, which is part of this source code package, for details.
 // ====================================================
 #endregion
-#define StaticTest
+//#define StaticTest
 
 using System;
 using System.Collections.Generic;
 using System.IO;
 using DOML;
+using DOML.IR;
 using DOML.Logger;
 using StaticBindings;
 
@@ -91,12 +92,17 @@ namespace Test.UnitTests
                         Log.Error("Pops failed");
             });
 
-            TestDOML.RunStringTest(@"
+            Parser.GetInterpreterFromText(@"
+                @ Test = System.Color ... // Comment
+                ;      .RGB(Normalised) = 0.5, 0.25, 0.1,
+                ").Execute(true);//Emit(Directory.GetCurrentDirectory() + "/Test.doml", true, true);
+
+            /*TestDOML.RunStringTest(@"
             @ Test = System.Color ... // Comment
             ;      .RGB(Normalised) = 0.5, 0.25, 0.1,
-            ", 100, Config.NONE);
+            ", 100, Config.ALL);*/
 
-            //Colours.ForEach(y => Log.Info($"Colour RGB: {y.R} {y.G} {y.B}"));
+            Colours.ForEach(y => Log.Info($"Colour RGB: {y.R} {y.G} {y.B}"));
 
             Console.Read();
 #endif

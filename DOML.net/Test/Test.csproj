@@ -7,6 +7,10 @@
     <Configurations>Debug;Release;Test</Configurations>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Test|AnyCPU'">
+    <DefineConstants>DEBUG;TRACE;TEST;NETCOREAPP1_0</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\DOML.net\DOML.net.csproj" />
     <ProjectReference Include="..\StaticBinding\StaticBindings.csproj" />

@@ -23,6 +23,11 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Test|AnyCPU'">
+    <Optimize>false</Optimize>
+    <DefineConstants>DEBUG;TRACE;TEST;NETSTANDARD1_3</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <Optimize>true</Optimize>
   </PropertyGroup>
 

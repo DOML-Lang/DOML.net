@@ -65,11 +65,11 @@ namespace DOML.IR
         {
             if (withComment)
             {
-                writer.WriteLine("{0,-10} {1,-30} ; {2,10}", GetInstructionName((Opcodes)instruction.OpCode), GetParameterText(instruction).Trim(), GetCommentEmit(instruction));
+                writer.WriteLine("{0,-15} {1,-50} ; {2,10}", ((Opcodes)instruction.OpCode).ToString(), GetParameterText(instruction).Trim(), GetCommentEmit(instruction));
             }
             else
             {
-                writer.WriteLine("{0,-10} {1,-30}", GetInstructionName((Opcodes)instruction.OpCode), GetParameterText(instruction));
+                writer.WriteLine("{0,-15} {1,-50}", ((Opcodes)instruction.OpCode).ToString(), GetParameterText(instruction));
             }
         }
 
@@ -133,13 +133,6 @@ namespace DOML.IR
                 Log.Error("Can't get comment emit on this instruction.");
                 return string.Empty;
             }
-        }
-
-        public string GetInstructionName(Opcodes instruction)
-        {
-            if (instruction == Opcodes.COMMENT) return ";"; // This is just so it well 1) looks nicer and 2) is more inline with the spec
-            string lower = instruction.ToString().ToLower();
-            return lower.Contains("_") ? lower.Replace("_", "") : lower;
         }
 
         public void Finish()
