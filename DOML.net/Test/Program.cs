@@ -6,14 +6,14 @@
 // file LICENSE, which is part of this source code package, for details.
 // ====================================================
 #endregion
-//#define StaticTest
+#define StaticTest
 
 using System;
 using System.Collections.Generic;
 using System.IO;
 using DOML;
-using DOML.IR;
 using DOML.Logger;
+using DOML.Test;
 using StaticBindings;
 
 namespace Test.UnitTests

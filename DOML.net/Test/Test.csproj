@@ -13,6 +13,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DOML.net\DOML.net.csproj" />
+    <ProjectReference Include="..\DOMLParser\DOMLParser.csproj" />
+    <ProjectReference Include="..\DOMLTest\DOMLTest.csproj" />
+    <ProjectReference Include="..\ReflectionBindings\ReflectionBindings.csproj" />
     <ProjectReference Include="..\StaticBinding\StaticBindings.csproj" />
   </ItemGroup>
 

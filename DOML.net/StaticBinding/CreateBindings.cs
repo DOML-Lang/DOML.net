@@ -15,10 +15,19 @@ using System.Reflection; // While this dependency is 'fine' I would argue we sho
 
 namespace StaticBindings
 {
+    /// <summary>
+    /// Create Static Bindings.
+    /// </summary>
     public static class CreateBindings
     {
+        /// <summary>
+        /// The directory path to create bindings to.
+        /// </summary>
         public static string DirectoryPath { get; set; }
 
+        /// <summary>
+        /// The directory info of the path.
+        /// </summary>
         public static DirectoryInfo Directory
         {
             get
@@ -31,10 +40,27 @@ namespace StaticBindings
             }
         }
 
+        /// <summary>
+        /// The binding functions to hold together.
+        /// So when it creates the final file it binds all the classes together.
+        /// </summary>
         private readonly static List<string> BindingFunctions = new List<string>();
 
+        /// <summary>
+        /// Create using a generic overload.
+        /// </summary>
+        /// <typeparam name="T"> The type to create. </typeparam>
+        /// <param name="rootNamespace"> The root namespace. </param>
+        public static void Create<T>(string rootNamespace) => Create(typeof(T), rootNamespace);
+
+        /// <summary>
+        /// Create all from a class.
+        /// </summary>
+        /// <param name="forClass"> The type to create.</param>
+        /// <param name="rootNamespace"> The root namespace. </param>
         public static void Create(Type forClass, string rootNamespace)
         {
+            // Safety checks
             if (DirectoryPath == null)
                 throw new NullReferenceException("Can't create bindings to a null directory path");
 
@@ -59,8 +85,18 @@ namespace StaticBindings
             BindingFunctions.Add($"{rootNamespace}.____{forClass.Name}StaticBindings____");
         }
 
-        public static void Create<T>(string rootNamespace) => Create(typeof(T), rootNamespace);
+        /// <summary>
+        /// Create all that use the <see cref="DOMLIncludeAttribute"/> in assembly provided.
+        /// </summary>
+        /// <param name="assemblyName"> The assembly to search in. </param>
+        /// <param name="withFinalFile"> Create the final binding file. </param>
+        public static void CreateAllFromAttributes(string assemblyName, bool withFinalFile = true) => CreateAllFromAttributes(Assembly.Load(new AssemblyName(assemblyName)), withFinalFile);
 
+        /// <summary>
+        /// Create all that use the <see cref="DOMLIncludeAttribute"/> in assembly provided.
+        /// </summary>
+        /// <param name="assembly"> The assembly to search in. </param>
+        /// <param name="withFinalFile"> Create the final binding file. </param>
         public static void CreateAllFromAttributes(Assembly assembly, bool withFinalFile = true)
         {
             IEnumerable<TypeInfo> classesAndStructs = assembly.DefinedTypes.Where(x => (x.IsClass || x.IsValueType) && x.GetCustomAttribute(typeof(DOMLIncludeAttribute)) != null);
@@ -72,10 +108,12 @@ namespace StaticBindings
             if (withFinalFile) CreateFinalFile();
         }
 
-        public static void CreateAllFromAttributes(string assemblyName, bool withFinalFile = true) => CreateAllFromAttributes(Assembly.Load(new AssemblyName(assemblyName)));
-
+        /// <summary>
+        /// Create the final file to bind all the classes together.
+        /// </summary>
         public static void CreateFinalFile()
         {
+            // Safety checks
             if (DirectoryPath == null)
                 throw new NullReferenceException("Can't create bindings to a null directory path.");
 

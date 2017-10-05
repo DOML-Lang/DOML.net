@@ -15,8 +15,11 @@ using DOML;
 using DOML.IR;
 using DOML.Logger;
 
-namespace Test
+namespace DOML.Test
 {
+    /// <summary>
+    /// The config options for the test.
+    /// </summary>
     [Flags]
     public enum Config
     {
@@ -30,8 +33,19 @@ namespace Test
         ALL = EMIT | SAFE_EXECUTE | EXECUTE | EMIT_COMMENT | READ_EMIT | READ_EMIT_COMMENT
     }
 
+    /// <summary>
+    /// This class can run tests on DOML code.
+    /// It will enact to minimise the effect of JIT and other environmental issues.
+    /// All tests are conducted using stringbuilders instead of files (so it works in UnitTests).
+    /// </summary>
     public static class TestDOML
     {
+        /// <summary>
+        /// Runs a test where it reads from a filepath and executes the test on that.
+        /// </summary>
+        /// <param name="filepath"> The filepath to read from. </param>
+        /// <param name="iterations"> How many iterations to run. </param>
+        /// <param name="options"> What tests to run. </param>
         public static void RunFileTest(string filepath, int iterations, Config options)
         {
             Log.HandleLogs = false;
@@ -106,6 +120,12 @@ namespace Test
             }
         }
 
+        /// <summary>
+        /// Runs a test where it reads from text and executes the test on that.
+        /// </summary>
+        /// <param name="text"> The text to read from. </param>
+        /// <param name="iterations"> How many iterations to run. </param>
+        /// <param name="options"> What tests to run. </param>
         public static void RunStringTest(string text, int iterations, Config options)
         {
             Log.HandleLogs = false;
@@ -181,7 +201,13 @@ namespace Test
             }
         }
 
-        public static void RunParseTest(TextReader reader, int iterations, bool throwOut)
+        /// <summary>
+        /// Runs a parsing test (parsing the source code).
+        /// </summary>
+        /// <param name="reader"> The reader to read. </param>
+        /// <param name="iterations"> How many times to run. </param>
+        /// <param name="throwOut"> Print out average of results. </param>
+        private static void RunParseTest(TextReader reader, int iterations, bool throwOut)
         {
             long total = 0;
             Stopwatch stopwatch = new Stopwatch();
@@ -207,7 +233,14 @@ namespace Test
             }
         }
 
-        public static void RunEmitTest(Interpreter interpreter, int iterations, bool throwOut, bool withComments)
+        /// <summary>
+        /// Runs an emit test (emitting the IR).
+        /// </summary>
+        /// <param name="interpreter"> The interpreter to emit from. </param>
+        /// <param name="iterations"> How many times to run. </param>
+        /// <param name="throwOut"> Print out average of results. </param>
+        /// <param name="withComments"> Emit with comments? </param>
+        private static void RunEmitTest(Interpreter interpreter, int iterations, bool throwOut, bool withComments)
         {
             Log.HandleLogs = false;
             Stopwatch stopwatch = new Stopwatch();
@@ -219,8 +252,9 @@ namespace Test
                 using (IRWriter writer = new IRWriter(builder))
                 {
                     stopwatch.Restart();
-                    interpreter.Emit(writer, withComments);
+                    writer.Emit(interpreter, withComments);
                     stopwatch.Stop();
+
                     if (throwOut == false)
                     {
                         total += 1000 * stopwatch.ElapsedTicks;
@@ -236,7 +270,14 @@ namespace Test
             }
         }
 
-        public static void RunReadEmitTest(Interpreter interpreter, int iterations, bool throwOut, bool withComments)
+        /// <summary>
+        /// Runs a parse IR test (parsing the emitted the IR).
+        /// </summary>
+        /// <param name="interpreter"> The interpreter to emit from then read. </param>
+        /// <param name="iterations"> How many times to run. </param>
+        /// <param name="throwOut"> Print out average of results. </param>
+        /// <param name="withComments"> Emit then read with comments? </param>
+        private static void RunReadEmitTest(Interpreter interpreter, int iterations, bool throwOut, bool withComments)
         {
             Log.HandleLogs = false;
             Stopwatch stopwatch = new Stopwatch();
@@ -245,7 +286,7 @@ namespace Test
 
             using (IRWriter writer = new IRWriter(builder))
             {
-                interpreter.Emit(writer, withComments);
+                writer.Emit(interpreter, withComments);
 
                 for (int i = 0; i < iterations; i++)
                 {
@@ -267,7 +308,14 @@ namespace Test
             }
         }
 
-        public static void RunExecuteTest(Interpreter interpreter, int iterations, bool throwOut, bool safe)
+        /// <summary>
+        /// Runs the execution test.
+        /// </summary>
+        /// <param name="interpreter"> The interpreter instance to execute. </param>
+        /// <param name="iterations"> How many times to run. </param>
+        /// <param name="throwOut"> Print out average of results. </param>
+        /// <param name="safe"> Run in safe execution or unsafe. </param>
+        private static void RunExecuteTest(Interpreter interpreter, int iterations, bool throwOut, bool safe)
         {
             Log.HandleLogs = false;
             Stopwatch stopwatch = new Stopwatch();

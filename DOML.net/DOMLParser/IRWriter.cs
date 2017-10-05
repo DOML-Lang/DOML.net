@@ -15,52 +15,109 @@ using DOML.Logger;
 namespace DOML.IR
 {
     /// <summary>
-    /// An instruction consists of just an opcode
-    /// and a parameter.
+    /// This class writes all the IR instructions.
     /// </summary>
-    public struct Instruction
-    {
-        public readonly byte OpCode;
-        public readonly object Parameter;
-
-        public Instruction(byte opcode, object parameter)
-        {
-            OpCode = opcode;
-            Parameter = parameter;
-        }
-
-        public Instruction(Opcodes opcode, object parameter)
-        {
-            OpCode = (byte)opcode;
-            Parameter = parameter;
-        }
-    }
-
     public class IRWriter : IDisposable
     {
+        /// <summary>
+        /// The writer.
+        /// </summary>
         private TextWriter writer;
 
-        public IRWriter(string filePath, bool append)
-        {
-            FileStream stream = File.Exists(filePath) ? File.Open(filePath, FileMode.Truncate) : new FileStream(filePath, append ? FileMode.Append : FileMode.Create);
-            writer = new StreamWriter(stream);
-        }
+        /// <summary>
+        /// Creeate an IR writer for a file.
+        /// </summary>
+        /// <param name="filePath"> The file path. </param>
+        /// <param name="append"> Append to file or overwrite. </param>
+        public IRWriter(string filePath, bool append) : this(new StreamWriter(File.Exists(filePath)
+            ? File.Open(filePath, FileMode.Truncate)
+            : new FileStream(filePath, append ? FileMode.Append : FileMode.Create)))
+        { }
 
-        public IRWriter(StringBuilder resultText)
-        {
-            writer = new StringWriter(resultText);
-        }
+        /// <summary>
+        /// Creates an IR writer to write to a string builder.
+        /// </summary>
+        /// <param name="resultText"> The builder to write to. </param>
+        public IRWriter(StringBuilder resultText) : this(new StringWriter(resultText))
+        { }
 
+        /// <summary>
+        /// Creates an IR writer to write to any text writer.
+        /// </summary>
+        /// <param name="writer"> The writer to write to. </param>
+        public IRWriter(TextWriter writer) => this.writer = writer;
+
+        /// <summary>
+        /// Deconstructor for IR writer.
+        /// Means you don't have to dispose of it.
+        /// </summary>
         ~IRWriter()
         {
-            Finish();
+            // Dispose of writer.
+            Dispose();
         }
 
+        /// <summary>
+        /// Emits all the instructions to a file path.
+        /// </summary>
+        /// <param name="interpreter"> The interpreter to print all the commands off. </param>
+        /// <param name="filePath"> The path to write to. </param>
+        /// <param name="append"> Append or overwrite. </param>
+        /// <param name="withLineComments"> Write line comments. </param>
+        public static void EmitToLocation(Interpreter interpreter, string filePath, bool append, bool withLineComments)
+        {
+            using (IRWriter writer = new IRWriter(filePath, append))
+            {
+                writer.Emit(interpreter, withLineComments);
+            }
+        }
+
+        /// <summary>
+        /// Emits all the instructions to a string builder.
+        /// </summary>
+        /// <param name="interpreter"> The interpreter to print all the commands off. </param>
+        /// <param name="builder"> The builder to write to. </param>
+        /// <param name="withLineComments"> Write line comments. </param>
+        public static void EmitToString(Interpreter interpreter, StringBuilder builder, bool withLineComments)
+        {
+            using (IRWriter writer = new IRWriter(builder))
+            {
+                writer.Emit(interpreter, withLineComments);
+            }
+        }
+
+        /// <summary>
+        /// Emits all the instructions to this writer.
+        /// </summary>
+        /// <param name="interpreter"> The interpreter to print all the commands off. </param>
+        /// <param name="withLineComments"> Add line comments. </param>
+        public void Emit(Interpreter interpreter, bool withLineComments)
+        {
+            WriteHeader();
+
+            for (int i = 0; i < interpreter.Instructions.Count; i++)
+            {
+                WriteInstructionText(interpreter.Instructions[i], withLineComments);
+            }
+
+            Log.Info("Emitted IR", false);
+        }
+
+        /// <summary>
+        /// Writes the header.
+        /// Which consists of a warning that changes won't persist.
+        /// </summary>
         public void WriteHeader()
         {
-            writer.WriteLine("; This is the resulting bytecode from the file given");
+            writer.WriteLine("; This is the resulting bytecode from the file given\n; This bytecode will be overriden if new bytecode is generated.");
         }
 
+        /// <summary>
+        /// Writes the text for an instruction.
+        /// </summary>
+        /// <param name="instruction"> The instruction. </param>
+        /// <param name="withComment"> Write a description comment.</param>
+        /// <remarks> Spaces out instructions to provide nice indentation and spacing. </remarks>
         public void WriteInstructionText(Instruction instruction, bool withComment)
         {
             if (withComment)
@@ -73,6 +130,11 @@ namespace DOML.IR
             }
         }
 
+        /// <summary>
+        /// Gets the comment emit for a specific instruction.
+        /// </summary>
+        /// <param name="instruction"> The instruction. </param>
+        /// <returns> The corresponding comment. </returns>
         public string GetCommentEmit(Instruction instruction)
         {
             switch ((Opcodes)instruction.OpCode)
@@ -92,10 +154,6 @@ namespace DOML.IR
                 return $"Runs the {GetParameterText(instruction)} function";
             case Opcodes.COPY:
                 return $"Copies top value {GetParameterText(instruction)} time" + ((int)instruction.Parameter != 1 ? "s" : "") + ", aka a peek and push";
-            case Opcodes.CLEAR:
-                return $"Clears entire stack";
-            case Opcodes.CLEAR_REG:
-                return $"Clears all registers";
             case Opcodes.REG_OBJ:
                 return $"Registers top object to index {GetParameterText(instruction)} after popping it off the stack";
             case Opcodes.UNREG_OBJ:
@@ -135,16 +193,11 @@ namespace DOML.IR
             }
         }
 
-        public void Finish()
-        {
-            writer.Dispose();
-        }
-
-        public void Dispose()
-        {
-            writer.Dispose();
-        }
-
+        /// <summary>
+        /// This gets the parameter text for an instruction
+        /// </summary>
+        /// <param name="instruction"> The instruction. </param>
+        /// <returns> The corresponding text. </returns>
         private string GetParameterText(Instruction instruction)
         {
             switch ((Opcodes)instruction.OpCode)
@@ -160,6 +213,14 @@ namespace DOML.IR
             default:
                 return instruction.Parameter.ToString();
             }
+        }
+
+        /// <summary>
+        /// Dispose of the writer.
+        /// </summary>
+        public void Dispose()
+        {
+            writer.Dispose();
         }
     }
 }

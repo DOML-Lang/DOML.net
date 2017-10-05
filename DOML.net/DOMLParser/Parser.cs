@@ -17,6 +17,9 @@ using DOML.Logger;
 
 namespace DOML
 {
+    /// <summary>
+    /// The parser for DOML and IR.
+    /// </summary>
     public static class Parser
     {
         public static int StartingLine { get; private set; }
@@ -421,8 +424,6 @@ namespace DOML
         {
             switch (opcode)
             {
-            case Opcodes.CLEAR:
-            case Opcodes.CLEAR_REG:
             case Opcodes.NOP:
             case Opcodes.COMMENT:
                 obj = valueToParse;

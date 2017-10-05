@@ -21,13 +21,13 @@ namespace DOML.IR
         /// <summary>
         /// These represent the actions to run.
         /// </summary>
-        internal static Dictionary<string, Action<InterpreterRuntime>> Actions { get; } = new Dictionary<string, Action<InterpreterRuntime>>();
+        public readonly static Dictionary<string, Action<InterpreterRuntime>> Actions = new Dictionary<string, Action<InterpreterRuntime>>();
 
         /// <summary>
         /// Expected size of operations.
         /// Either amount of parameters or amount of return variables.
         /// </summary>
-        internal static Dictionary<string, int> SizeOf { get; } = new Dictionary<string, int>();
+        public readonly static Dictionary<string, int> SizeOf = new Dictionary<string, int>();
 
         /// <summary>
         /// Register a getter function.
