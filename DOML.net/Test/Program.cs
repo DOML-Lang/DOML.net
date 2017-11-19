@@ -6,7 +6,7 @@
 // file LICENSE, which is part of this source code package, for details.
 // ====================================================
 #endregion
-#define TestBindings // StaticBindings // TestBindings // BenchmarkDotNet (the last one is just till they update theirs to support standard 1.3)
+#define BenchmarkDotNet // StaticBindings // TestBindings // BenchmarkDotNet (the last one is just till they update theirs to support standard 1.3)
 
 using System;
 using System.Collections.Generic;
@@ -66,7 +66,7 @@ namespace Test.UnitTests
         public string IRWithComments;
         public string IRWithoutComments;
 
-        //[Params(true, false)]
+        [Params(true, false)]
         public bool WithCondition;
 
         public AllTests()
@@ -102,7 +102,7 @@ namespace Test.UnitTests
             this.IRWithoutComments = IRWithoutComments.ToString();
         }
 
-        //[Benchmark]
+        [Benchmark]
         public Interpreter ParseTest()
         {
             return Parser.GetInterpreterFromText(@"
@@ -125,30 +125,23 @@ namespace Test.UnitTests
             ", Parser.ReadMode.DOML);
         }
 
-        //   [Benchmark]
+        [Benchmark]
         public void EmitTest()
         {
             StringBuilder builder = new StringBuilder();
             IRWriter.EmitToString(baseInterpreter, builder, WithCondition);
         }
 
-        //   [Benchmark]
+        [Benchmark]
         public void ExecuteTest()
         {
             baseInterpreter.Execute(WithCondition);
         }
 
         [Benchmark]
-        public Interpreter ReadIRComments()
-        {
-            using (StringReader reader = new StringReader(IRWithComments))
-                return Parser.GetInterpreterFromIR(reader);
-        }
-
-        //  [Benchmark]
         public Interpreter ReadIR()
         {
-            using (StringReader reader = new StringReader(IRWithoutComments))
+            using (StringReader reader = new StringReader(WithCondition ? IRWithComments : IRWithoutComments))
                 return Parser.GetInterpreterFromIR(reader);
         }
     }

@@ -29,6 +29,7 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <Optimize>true</Optimize>
+    <DocumentationFile>bin\Release\netstandard1.3\DOML.net.xml</DocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>
