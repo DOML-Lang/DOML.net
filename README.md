@@ -6,15 +6,12 @@ Note: Check out the proper [spec](https://github.com/DOML-DataOrientedMarkupLang
 ## Benchmarks
 
 ``` ini
-
 BenchmarkDotNet=v0.10.9, OS=Windows 10 Redstone 2 (10.0.15063)
 Processor=Intel Core i5-4590 CPU 3.30GHz (Haswell), ProcessorCount=4
 Frequency=3222670 Hz, Resolution=310.3017 ns, Timer=TSC
 .NET Core SDK=1.1.0
   [Host]     : .NET Core 1.1.2 (Framework 4.6.25211.01), 64bit RyuJIT
   DefaultJob : .NET Core 1.1.2 (Framework 4.6.25211.01), 64bit RyuJIT
-
-
 ```
  |      Method | WithCondition |      Mean |     Error |    StdDev |
  |------------ |-------------- |----------:|----------:|----------:|
@@ -28,6 +25,7 @@ Frequency=3222670 Hz, Resolution=310.3017 ns, Timer=TSC
  |      ReadIR |          True |  5.646 us | 0.0624 us | 0.0584 us |
 
 > WithConditions represents reading with/without commments, emitting with/without comments, and executing in either safe/unsafe mode
+<img src="https://github.com/DOML-DataOrientedMarkupLanguage/DOML.net/blob/master/DOML.net/Test/BenchmarkDotNet.Artifacts/results/AllTests-barplot.png" width="500" height="500">
 
 #### Takeaways
 - Parsing is around 17ms (or ~17,000ns)
