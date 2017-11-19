@@ -53,7 +53,7 @@ namespace ReflectionBindings
                         {
                             object[] objects = new object[parameterInfo.Length];
                             for (int i = 0; i < parameterInfo.Length; i++)
-                                if (!runtime.Pop(out objects[i]))
+                                if (!runtime.Pop(out objects[parameterInfo.Length-1-i]))
                                     break;
 
                             // Since it will break but not assign objects[i] if the pop goes wrong we can just check if it has set it
@@ -136,7 +136,7 @@ namespace ReflectionBindings
                             {
                                 object[] objects = new object[parameterInfo.Length];
                                 for (int i = 0; i < parameterInfo.Length; i++)
-                                    if (!runtime.Pop(out objects[i]))
+                                    if (!runtime.Pop(out objects[parameterInfo.Length-1-i]))
                                         break;
 
                                 // Since it will break but not assign objects[i] if the pop goes wrong we can just check if it has set it
@@ -171,7 +171,7 @@ namespace ReflectionBindings
                                 object[] objects = new object[parameterInfo.Length] ;
 
                                 for (int i = 0; i < parameterInfo.Length; i++)
-                                    if (!runtime.Pop(out objects[i]))
+                                    if (!runtime.Pop(out objects[parameterInfo.Length - 1 - i]))
                                         break;
 
                                 // Since it will break but not assign objects[i] if the pop goes wrong we can just check if it has set it

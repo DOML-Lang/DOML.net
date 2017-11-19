@@ -48,7 +48,7 @@ namespace DOML.Test
         /// <param name="options"> What tests to run. </param>
         public static void RunFileTest(string filepath, int iterations, Config options)
         {
-            Log.HandleLogs = false;
+            Log.HandleLogs = true;
             // throw out first 1000
             for (int i = 0; i < 1000; i++)
             {
@@ -128,7 +128,7 @@ namespace DOML.Test
         /// <param name="options"> What tests to run. </param>
         public static void RunStringTest(string text, int iterations, Config options)
         {
-            Log.HandleLogs = false;
+            Log.HandleLogs = true;
 
             // throw out first 1000
             for (int i = 0; i < 1000; i++)
@@ -215,7 +215,7 @@ namespace DOML.Test
             for (int i = 0; i < iterations; i++)
             {
                 stopwatch.Restart();
-                Interpreter interpreter = Parser.GetInterpreter(reader, false);
+                Interpreter interpreter = Parser.GetInterpreter(reader);
                 stopwatch.Stop();
                 interpreter.HandleSafeInstruction(new Instruction(Opcodes.NOP, ""));
 
@@ -229,7 +229,7 @@ namespace DOML.Test
             {
                 Log.HandleLogs = true;
                 Log.Info($"<PARSE TEST> Took {((total / (double)Stopwatch.Frequency) / iterations)}ms to complete.  Performed: {iterations} times");
-                Log.HandleLogs = false;
+                Log.HandleLogs = true;
             }
         }
 
@@ -242,7 +242,7 @@ namespace DOML.Test
         /// <param name="withComments"> Emit with comments? </param>
         private static void RunEmitTest(Interpreter interpreter, int iterations, bool throwOut, bool withComments)
         {
-            Log.HandleLogs = false;
+            Log.HandleLogs = true;
             Stopwatch stopwatch = new Stopwatch();
             long total = 0;
 
@@ -266,7 +266,7 @@ namespace DOML.Test
             {
                 Log.HandleLogs = true;
                 Log.Info($"<EMIT {(withComments ? "WITH COMMENTS" : "WITHOUT COMMENTS")} TEST> Took average of {((total / (double)Stopwatch.Frequency) / iterations)}ms to complete.  Did {iterations} times");
-                Log.HandleLogs = false;
+                Log.HandleLogs = true;
             }
         }
 
@@ -279,7 +279,7 @@ namespace DOML.Test
         /// <param name="withComments"> Emit then read with comments? </param>
         private static void RunReadEmitTest(Interpreter interpreter, int iterations, bool throwOut, bool withComments)
         {
-            Log.HandleLogs = false;
+            Log.HandleLogs = true;
             Stopwatch stopwatch = new Stopwatch();
             long total = 0;
             StringBuilder builder = new StringBuilder();
@@ -291,11 +291,11 @@ namespace DOML.Test
                 for (int i = 0; i < iterations; i++)
                 {
                     stopwatch.Restart();
-                    Parser.GetInterpreterFromText(builder.ToString(), true);
+                    Parser.GetInterpreterFromText(builder.ToString(), Parser.ReadMode.IR);
                     stopwatch.Stop();
                     if (throwOut == false)
                     {
-                        total += 1000 * stopwatch.ElapsedTicks;
+                        total += stopwatch.ElapsedMilliseconds;
                     }
                 }
             }
@@ -303,8 +303,8 @@ namespace DOML.Test
             if (throwOut == false)
             {
                 Log.HandleLogs = true;
-                Log.Info($"<READ EMIT {(withComments ? "WITH COMMENTS" : "WITHOUT COMMENTS")} TEST> Took average of {((total / (double)Stopwatch.Frequency) / iterations)}ms to complete.  Did {iterations} times");
-                Log.HandleLogs = false;
+                Log.Info($"<READ EMIT {(withComments ? "WITH COMMENTS" : "WITHOUT COMMENTS")} TEST> Took average of {(total / iterations)}ms to complete.  Did {iterations} times");
+                Log.HandleLogs = true;
             }
         }
 
@@ -317,7 +317,7 @@ namespace DOML.Test
         /// <param name="safe"> Run in safe execution or unsafe. </param>
         private static void RunExecuteTest(Interpreter interpreter, int iterations, bool throwOut, bool safe)
         {
-            Log.HandleLogs = false;
+            Log.HandleLogs = true;
             Stopwatch stopwatch = new Stopwatch();
             long total = 0;
 
@@ -336,7 +336,7 @@ namespace DOML.Test
             {
                 Log.HandleLogs = true;
                 Log.Info($"<{(safe ? "SAFE" : "UNSAFE")} EXECUTE TEST> Took average of {((total / (double)Stopwatch.Frequency) / iterations)}ms to complete.  Did {iterations} times");
-                Log.HandleLogs = false;
+                Log.HandleLogs = true;
             }
         }
     }

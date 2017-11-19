@@ -95,12 +95,15 @@ namespace DOML.IR
         {
             WriteHeader();
 
+            if (interpreter == null)
+                return;
+
             for (int i = 0; i < interpreter.Instructions.Count; i++)
             {
                 WriteInstructionText(interpreter.Instructions[i], withLineComments);
             }
 
-            Log.Info("Emitted IR", false);
+            Log.Info("Emitted IR");
         }
 
         /// <summary>
@@ -122,11 +125,11 @@ namespace DOML.IR
         {
             if (withComment)
             {
-                writer.WriteLine("{0,-15} {1,-50} ; {2,10}", ((Opcodes)instruction.OpCode).ToString(), GetParameterText(instruction).Trim(), GetCommentEmit(instruction));
+                writer.WriteLine("{0:D2}, {1,-50} ; {2,10}", instruction.OpCode, GetParameterText(instruction).Trim(), GetCommentEmit(instruction));
             }
             else
             {
-                writer.WriteLine("{0,-15} {1,-50}", ((Opcodes)instruction.OpCode).ToString(), GetParameterText(instruction));
+                writer.Write("{0}, {1} ", instruction.OpCode, GetParameterText(instruction));
             }
         }
 
@@ -141,8 +144,6 @@ namespace DOML.IR
             {
             case Opcodes.NOP:
                 return $"Deliberate void instruction";
-            case Opcodes.PANIC:
-                return $"Panic if top value equals {GetParameterText(instruction)}";
             case Opcodes.COMMENT:
                 return $"USER COMMENT";
             case Opcodes.MAKE_SPACE:
@@ -166,9 +167,7 @@ namespace DOML.IR
             case Opcodes.PUSH_NUM:
                 return $"Pushes double {GetParameterText(instruction)} onto the stack";
             case Opcodes.PUSH_STR:
-                return $"Pushes string \"{GetParameterText(instruction)}\" onto the stack";
-            case Opcodes.PUSH_CHAR:
-                return $"Pushes character \'{GetParameterText(instruction)}\' onto the stack";
+                return $"Pushes string {GetParameterText(instruction)} onto the stack";
             case Opcodes.PUSH_BOOL:
                 return $"Pushes boolean {GetParameterText(instruction)} onto the stack";
             case Opcodes.PUSH:
@@ -179,13 +178,6 @@ namespace DOML.IR
                 return $"Performs a constructor call on {GetParameterText(instruction)} and pushes the new object onto the stack";
             case Opcodes.POP:
                 return $"Pops top object off the stack {GetParameterText(instruction)} time" + ((int)instruction.Parameter != 1 ? "s" : "");
-
-            case Opcodes.COMP_MAX:
-                return $"Pushes true onto the stack if the max stack size is less than {GetParameterText(instruction)} else it'll push false";
-            case Opcodes.COMP_SIZE:
-                return $"Pushes true onto the stack if the current stack size is less than {GetParameterText(instruction)} else it'll push false";
-            case Opcodes.COMP_REG:
-                return $"Pushes true onto the stack if the current register size is less than {GetParameterText(instruction)} else it'll push false";
 
             default:
                 Log.Error("Can't get comment emit on this instruction.");
@@ -203,15 +195,14 @@ namespace DOML.IR
             switch ((Opcodes)instruction.OpCode)
             {
             case Opcodes.PUSH_STR:
+            case Opcodes.COMMENT:
                 return '"' + instruction.Parameter.ToString() + '"';
-            case Opcodes.PUSH_CHAR:
-                return "'" + instruction.Parameter.ToString() + "'";
             case Opcodes.SET:
             case Opcodes.NEW:
             case Opcodes.CALL:
                 return instruction.Parameter.ToString().Split(' ')[1];
             default:
-                return instruction.Parameter.ToString();
+                return instruction.Parameter?.ToString() ?? "0";
             }
         }
 

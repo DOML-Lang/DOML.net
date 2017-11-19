@@ -97,7 +97,7 @@ namespace DOML.IR
             }
             else
             {
-                Log.Error("Couldn't clear stack cause stack was empty.");
+                Log.Info("Couldn't clear stack cause stack was empty.");
                 return false;
             }
         }
@@ -116,7 +116,7 @@ namespace DOML.IR
             }
             else
             {
-                Log.Error("Couldn't clear registers cause the register array was empty.");
+                Log.Info("Couldn't clear registers cause the register array was empty.");
                 return false;
             }
         }
@@ -304,7 +304,7 @@ namespace DOML.IR
             }
             else
             {
-                Log.Error("Nothing to pop off the stack, or wanting to pop off object that has as an invalid type.", false);
+                Log.Error("Nothing to pop off the stack, or wanting to pop off object that has as an invalid type.");
                 return false;
             }
         }
@@ -347,7 +347,7 @@ namespace DOML.IR
             }
             else
             {
-                Log.Error("Nothing to peek off the stack.", false);
+                Log.Error("Nothing to peek off the stack.");
                 result = null;
                 return false;
             }
@@ -390,7 +390,7 @@ namespace DOML.IR
             }
             else
             {
-                Log.Error("Nothing to peek off the stack.", false);
+                Log.Error("Nothing to peek off the stack.");
                 result = default(T);
                 return false;
             }
