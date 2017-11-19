@@ -1,0 +1,44 @@
+; This is the resulting bytecode from the file given
+; This bytecode will be overriden if new bytecode is generated.
+02 4                                                  ; Reserves 4 spaces on the stack.
+03 4                                                  ; Reserves 4 spaces on the register.
+01 "This is a comment"                                ; USER COMMENT
+01 "Construct a new System.Color"                     ; USER COMMENT
+06 System.Color                                       ; Performs a constructor call on System.Color and pushes the new object onto the stack
+07 0                                                  ; Registers top object to index 0 after popping it off the stack
+12 255                                                ; Pushes long integer 255 onto the stack
+12 64                                                 ; Pushes long integer 64 onto the stack
+12 128                                                ; Pushes long integer 128 onto the stack
+11 0                                                  ; Pushes object in register ID: 0 onto the stack
+04 System.Color::RGB                                  ; Runs the System.Color::RGB function
+01 "Implicit 'array'"                                 ; USER COMMENT
+06 System.Color                                       ; Performs a constructor call on System.Color and pushes the new object onto the stack
+07 1                                                  ; Registers top object to index 1 after popping it off the stack
+12 1                                                  ; Pushes long integer 1 onto the stack
+13 0.25                                               ; Pushes double 0.25 onto the stack
+13 0.5                                                ; Pushes double 0.5 onto the stack
+01 "You can have trailing commas"                     ; USER COMMENT
+11 1                                                  ; Pushes object in register ID: 1 onto the stack
+04 System.Color::RGB.Normalised                       ; Runs the System.Color::RGB.Normalised function
+06 System.Color                                       ; Performs a constructor call on System.Color and pushes the new object onto the stack
+07 2                                                  ; Registers top object to index 2 after popping it off the stack
+12 16728192                                           ; Pushes long integer 16728192 onto the stack
+11 2                                                  ; Pushes object in register ID: 2 onto the stack
+04 System.Color::RGB.Hex                              ; Runs the System.Color::RGB.Hex function
+15 "OtherName"                                        ; Pushes string "OtherName" onto the stack
+11 2                                                  ; Pushes object in register ID: 2 onto the stack
+04 System.Color::Name                                 ; Runs the System.Color::Name function
+01 " Multi Line Comment Blocks are great "            ; USER COMMENT
+06 System.Color                                       ; Performs a constructor call on System.Color and pushes the new object onto the stack
+07 3                                                  ; Registers top object to index 3 after popping it off the stack
+11 0                                                  ; Pushes object in register ID: 0 onto the stack
+05 System.Color::R                                    ; Performs a getter call on System.Color::R and pushes the values onto the stack
+11 0                                                  ; Pushes object in register ID: 0 onto the stack
+05 System.Color::G                                    ; Performs a getter call on System.Color::G and pushes the values onto the stack
+11 0                                                  ; Pushes object in register ID: 0 onto the stack
+05 System.Color::B                                    ; Performs a getter call on System.Color::B and pushes the values onto the stack
+11 3                                                  ; Pushes object in register ID: 3 onto the stack
+04 System.Color::RGB                                  ; Runs the System.Color::RGB function
+15 "Copy"                                             ; Pushes string "Copy" onto the stack
+11 3                                                  ; Pushes object in register ID: 3 onto the stack
+04 System.Color::Name                                 ; Runs the System.Color::Name function

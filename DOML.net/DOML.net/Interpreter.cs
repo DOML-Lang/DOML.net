@@ -19,6 +19,7 @@ namespace DOML.IR
     public enum Opcodes : byte
     {
         /* ------ System Instructions ------ */
+
         /// <summary>
         /// Explicitly does nothing.
         /// Parameter doesn't matter since it explicitly ignores it.
@@ -35,12 +36,6 @@ namespace DOML.IR
         COMMENT,
 
         /// <summary>
-        /// Panics if top value matches parameter.
-        /// </summary>
-        /// <remarks> Parameter; Any Type. </remarks>
-        PANIC,
-
-        /// <summary>
         /// Reserve space in stack equal to the parameter given.
         /// Note: The parameter should represent the new stack length not the difference.
         /// </summary>
@@ -54,7 +49,7 @@ namespace DOML.IR
         /// <remarks> Parameter; An integer. </remarks>
         MAKE_REG,
 
-        /* ------ Set Instructions ------ */
+        /* ------ Call Instructions ------ */
 
         /// <summary>
         /// Runs the set function of the parameter given.
@@ -63,9 +58,20 @@ namespace DOML.IR
         SET,
 
         /// <summary>
-        /// Copies top value, (aka peek and repush).
+        /// Performs a function call based on the parameter.
+        /// Indexes <see cref="InstructionRegister.Actions"/> with "get" + parameter.
         /// </summary>
-        COPY,
+        /// <remarks> Parameter; An identifier to call. </remarks>
+        CALL,
+
+        /// <summary>
+        /// Creates a new object based on the parameter.
+        /// Indexes <see cref="InstructionRegister.Actions"/> with "new" + parameter.
+        /// </summary>
+        /// <remarks> Parameter; An identifier to call. </remarks>
+        NEW,
+
+        /* ------ Push Instructions ------ */
 
         /// <summary>
         /// Register an object to the index supplied.
@@ -77,7 +83,18 @@ namespace DOML.IR
         /// </summary>
         UNREG_OBJ,
 
-        /* ------ Push Instructions (17 - 34) ------ */
+        /// <summary>
+        /// Copies top value, (aka peek and repush).
+        /// </summary>
+        COPY,
+
+        /// <summary>
+        /// Pops items off the stack equal to the parameter given.
+        /// I.e. if 2 is given then pop off the top two values.
+        /// </summary>
+        /// <remarks> Parameter; A signed 32 integer. </remarks>
+        POP,
+
         /// <summary>
         /// Pushes an object from the register ID given by the parameter onto the stack.
         /// </summary>
@@ -111,12 +128,6 @@ namespace DOML.IR
         /// <summary>
         /// Pushes the parameter onto the stack.
         /// </summary>
-        /// <remarks> Parameter; A character. </remarks>
-        PUSH_CHAR,
-
-        /// <summary>
-        /// Pushes the parameter onto the stack.
-        /// </summary>
         /// <remarks> Parameter; A boolean. </remarks>
         PUSH_BOOL,
 
@@ -125,43 +136,6 @@ namespace DOML.IR
         /// </summary>
         /// <remarks> Parameter; Any Type. </remarks>
         PUSH,
-
-        /// <summary>
-        /// Performs a function call based on the parameter.
-        /// Indexes <see cref="InstructionRegister.Actions"/> with "get" + parameter.
-        /// </summary>
-        /// <remarks> Parameter; An identifier to call. </remarks>
-        CALL,
-
-        /// <summary>
-        /// Creates a new object based on the parameter.
-        /// Indexes <see cref="InstructionRegister.Actions"/> with "new" + parameter.
-        /// </summary>
-        /// <remarks> Parameter; An identifier to call. </remarks>
-        NEW,
-
-        /// <summary>
-        /// Pops items off the stack equal to the parameter given.
-        /// I.e. if 2 is given then pop off the top two values.
-        /// </summary>
-        /// <remarks> Parameter; A signed 32 integer. </remarks>
-        POP,
-
-        /* ------ Check Instructions  (35 - 55) ------ */
-        /// <summary>
-        /// Pushes true if the max stack size is less than the parameter value, else false.
-        /// </summary>
-        COMP_MAX,
-
-        /// <summary>
-        /// Pushes true if the current stack size is less than the parameter value, else false.
-        /// </summary>
-        COMP_SIZE,
-
-        /// <summary>
-        /// Pushes true if the current register size is less than the parameter value, else false.
-        /// </summary>
-        COMP_REG,
 
         /// <summary>
         /// The amount of instructions.
@@ -229,19 +203,6 @@ namespace DOML.IR
                 // Explicity does nothing
                 // @NOTE: Should we even call them??
                 return;
-            case Opcodes.PANIC:
-                {
-                    if (!Runtime.Pop(out object result))
-                    {
-                        Log.Error("PANIC: Nothing to compare against.");
-                    }
-                    else if (result != instruction.Parameter)
-                    {
-                        // Maybe we convert to string then check??
-                        Log.Error("PANIC: Top value doesn't equal parameter.");
-                    }
-                    return;
-                }
             case Opcodes.MAKE_SPACE:
                 {
                     if (instruction.Parameter is int res)
@@ -357,12 +318,6 @@ namespace DOML.IR
                     Log.Error("Push failed or wrong type.");
                 }
                 return;
-            case Opcodes.PUSH_CHAR:
-                if (!(instruction.Parameter is char) || !Runtime.Push(instruction.Parameter, true))
-                {
-                    Log.Error("Push failed or wrong type.");
-                }
-                return;
             case Opcodes.PUSH_BOOL:
                 if (!(instruction.Parameter is bool) || !Runtime.Push(instruction.Parameter, true))
                 {
@@ -409,32 +364,6 @@ namespace DOML.IR
                     return;
                 }
             #endregion
-            #region Check Instructions
-            case Opcodes.COMP_MAX:
-                {
-                    if (!(instruction.Parameter is int res) || !Runtime.Push(Runtime.MaxStackSize < res, true))
-                    {
-                        Log.Error("Check failed");
-                    }
-                    return;
-                }
-            case Opcodes.COMP_SIZE:
-                {
-                    if (!(instruction.Parameter is int res) || !Runtime.Push(Runtime.CurrentStackSize < res, true))
-                    {
-                        Log.Error("Check failed");
-                    }
-                    return;
-                }
-            case Opcodes.COMP_REG:
-                {
-                    if (!(instruction.Parameter is int res) || !Runtime.Push(Runtime.RegisterSize < res, true))
-                    {
-                        Log.Error("Check failed");
-                    }
-                    return;
-                }
-            #endregion
             default:
                 throw new NotImplementedException("Option not implemented");
             }
@@ -454,14 +383,6 @@ namespace DOML.IR
                 // Explicity does nothing
                 // @NOTE: Should we even call them??
                 return;
-            case Opcodes.PANIC:
-                {
-                    if (Runtime.Unsafe_Pop() != instruction.Parameter)
-                    {
-                        Log.Error("PANIC: Top value doesn't equal parameter.");
-                    }
-                    return;
-                }
             case Opcodes.MAKE_SPACE:
                 Runtime.ReserveSpace((int)instruction.Parameter);
                 return;
@@ -500,7 +421,6 @@ namespace DOML.IR
             case Opcodes.PUSH_NUM:
             case Opcodes.PUSH_DEC:
             case Opcodes.PUSH_STR:
-            case Opcodes.PUSH_CHAR:
             case Opcodes.PUSH_BOOL:
             case Opcodes.PUSH:
                 Runtime.Unsafe_Push(instruction.Parameter);
@@ -518,17 +438,6 @@ namespace DOML.IR
                     }
                     return;
                 }
-            #endregion
-            #region Check Instructions
-            case Opcodes.COMP_MAX:
-                Runtime.Unsafe_Push(Runtime.MaxStackSize < (int)instruction.Parameter);
-                return;
-            case Opcodes.COMP_SIZE:
-                Runtime.Unsafe_Push(Runtime.CurrentStackSize < (int)instruction.Parameter);
-                return;
-            case Opcodes.COMP_REG:
-                Runtime.Unsafe_Push(Runtime.RegisterSize < (int)instruction.Parameter);
-                return;
             #endregion
             default:
                 throw new NotImplementedException("Option not implemented");

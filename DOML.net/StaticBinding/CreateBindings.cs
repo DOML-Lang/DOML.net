@@ -64,8 +64,6 @@ namespace StaticBindings
             if (DirectoryPath == null)
                 throw new NullReferenceException("Can't create bindings to a null directory path");
 
-            rootNamespace = $"StaticBindings.{rootNamespace}Bindings";
-
             using (CodeWriter codeWriter = new CodeWriter(DirectoryPath + "/StaticBinding-" + forClass.FullName + ".cs", false, rootNamespace))
             {
                 codeWriter.WriteSuppression("IDE0012", true, "Ignorning warning for shorter names");
@@ -75,14 +73,14 @@ namespace StaticBindings
                 codeWriter.WriteUsings();
                 codeWriter.WriteEmptyLine();
 
-                codeWriter.WriteNamespaceSignature();
+                codeWriter.WriteNamespaceSignature("StaticBindings.BindingsFor");
                 codeWriter.WriteClass(forClass);
                 codeWriter.CloseBrace();
 
                 codeWriter.WriteSuppression("IDE0012", false, "Restore warning for shorter names");
             }
 
-            BindingFunctions.Add($"{rootNamespace}.____{forClass.Name}StaticBindings____");
+            BindingFunctions.Add($"StaticBindings.BindingsFor{rootNamespace}.____{forClass.Name}StaticBindings____");
         }
 
         /// <summary>

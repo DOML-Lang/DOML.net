@@ -6,45 +6,242 @@
 // file LICENSE, which is part of this source code package, for details.
 // ====================================================
 #endregion
-#define StaticTest
+#define BenchmarkDotNet // StaticBindings // TestBindings // BenchmarkDotNet (the last one is just till they update theirs to support standard 1.3)
 
 using System;
 using System.Collections.Generic;
 using System.IO;
 using DOML;
+using DOML.IR;
 using DOML.Logger;
 using DOML.Test;
 using StaticBindings;
+using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Running;
+using BenchmarkDotNet.Helpers;
+using BenchmarkDotNet.Reports;
+using System.Text;
+using System.Xml;
+using System.Xml.Serialization;
+using BenchmarkDotNet.Attributes.Exporters;
+using System.Reflection;
+using System.Linq;
 
 namespace Test.UnitTests
 {
-    public class Colour
+    public class Color
     {
         public float R, G, B;
+        public string Name;
 
-        public void SetRGB(float R, float G, float B)
+        public void RGB(float R, float G, float B)
+        {
+            this.R = R / 255;
+            this.G = G / 255;
+            this.B = B / 255;
+        }
+
+        [DOMLCustomise("RGB.Normalised")]
+        public void RGBNormalised(float R, float G, float B)
         {
             this.R = R;
             this.G = G;
             this.B = B;
         }
+
+        [DOMLCustomise("RGB.Hex")]
+        public void RGBHex(int hex)
+        {
+            int r = ((hex & 0xff0000) >> 16) / 255;
+            int g = ((hex & 0xff00) >> 8) / 255;
+            int b = (hex & 0xff) / 255;
+        }
+    }
+
+    [RPlotExporter]
+    public class AllTests
+    {
+        public Interpreter baseInterpreter;
+
+        public string IRWithComments;
+        public string IRWithoutComments;
+
+        [Params(true, false)]
+        public bool WithCondition;
+
+        public AllTests()
+        {
+            DOMLBindings.LinkBindings();
+            Log.HandleLogs = false;
+
+            baseInterpreter = Parser.GetInterpreterFromText(@"
+            // This is a comment
+            // Construct a new System.Color
+            @ Test        = System.Color ...
+            ;             .RGB             = 255, 64, 128 // Implicit 'array'
+
+            @ TheSame     = System.Color ...
+            ;             .RGB->Normalised = 1, 0.25, 0.5, // You can have trailing commas
+
+            @ AgainSame   = System.Color ...
+            ;             .RGB->Hex        = 0xFF4080
+            ;             .Name            = ""OtherName""
+
+            /* Multi Line Comment Blocks are great */
+            @ Copy = System.Color...
+            ;             .RGB = Test.R, Test.G, Test.B
+            ;             .Name = ""Copy""
+            ", Parser.ReadMode.DOML);
+
+            StringBuilder IRWithComments = new StringBuilder(), IRWithoutComments = new StringBuilder();
+
+            IRWriter.EmitToString(baseInterpreter, IRWithComments, true);
+            IRWriter.EmitToString(baseInterpreter, IRWithoutComments, false);
+
+            this.IRWithComments = IRWithComments.ToString();
+            this.IRWithoutComments = IRWithoutComments.ToString();
+        }
+
+        [Benchmark]
+        public Interpreter ParseTest()
+        {
+            return Parser.GetInterpreterFromText(@"
+            // This is a comment
+            // Construct a new System.Color
+            @ Test        = System.Color ...
+            ;             .RGB             = 255, 64, 128 // Implicit 'array'
+
+            @ TheSame     = System.Color ...
+            ;             .RGB->Normalised = 1, 0.25, 0.5, // You can have trailing commas
+
+            @ AgainSame   = System.Color ...
+            ;             .RGB->Hex        = 0xFF4080
+            ;             .Name            = ""OtherName""
+
+            /* Multi Line Comment Blocks are great */
+            @ Copy = System.Color...
+            ;             .RGB = Test.R, Test.G, Test.B
+            ;             .Name = ""Copy""
+            ", Parser.ReadMode.DOML);
+        }
+
+        [Benchmark]
+        public void EmitTest()
+        {
+            StringBuilder builder = new StringBuilder();
+            IRWriter.EmitToString(baseInterpreter, builder, WithCondition);
+        }
+
+        [Benchmark]
+        public void ExecuteTest()
+        {
+            baseInterpreter.Execute(WithCondition);
+        }
+
+        [Benchmark]
+        public Interpreter ReadIR()
+        {
+            using (StringReader reader = new StringReader(WithCondition ? IRWithComments : IRWithoutComments))
+                return Parser.GetInterpreterFromIR(reader);
+        }
     }
 
     public class Program
     {
-        private static List<Colour> Colours = new List<Colour>();
+        static Program()
+        {
+        }
 
         public static void Main(string[] args)
         {
             Console.SetWindowSize((int)(Console.LargestWindowWidth / 1.5f), (int)(Console.LargestWindowHeight / 1.5f));
-
-#if StaticTest
+#if BenchmarkDotNet
+            Summary summary = BenchmarkRunner.Run<AllTests>();
+            Console.Read();
+#elif StaticBindings
             if (Directory.Exists(Directory.GetCurrentDirectory() + "/StaticBindings") == false)
                 Directory.CreateDirectory(Directory.GetCurrentDirectory() + "/StaticBindings");
 
             CreateBindings.DirectoryPath = Directory.GetCurrentDirectory() + "/StaticBindings";
-            CreateBindings.Create<Colour>("System");
+            CreateBindings.Create<Color>("System");
             CreateBindings.CreateFinalFile();
+#elif TestBindings
+            DOMLBindings.LinkBindings();
+
+
+            Interpreter interpreter = Parser.GetInterpreterFromText(@"
+            // This is a comment
+            // Construct a new System.Color
+            @ Test        = System.Color ...
+            ;             .RGB             = 255, 64, 128 // Implicit 'array'
+
+            @ TheSame     = System.Color ...
+            ;             .RGB->Normalised = 1, 0.25, 0.5, // You can have trailing commas
+
+            @ AgainSame   = System.Color ...
+            ;             .RGB->Hex        = 0xFF4080
+            ;             .Name            = ""OtherName""
+
+            /* Multi Line Comment Blocks are great */
+            @ Copy = System.Color...
+            ;             .RGB = Test.R, Test.G, Test.B
+            ;             .Name = ""Copy""
+            ");
+
+            string withComments;
+            string withoutComments;
+
+            IRWriter.EmitToLocation(interpreter, Directory.GetCurrentDirectory() + "/CompactOutput.IR", false, false);
+            IRWriter.EmitToLocation(interpreter, Directory.GetCurrentDirectory() + "/Output.IR", false, true);
+
+            StringBuilder builder = new StringBuilder();
+
+            IRWriter.EmitToString(interpreter, builder, true);
+            withComments = builder.ToString();
+            builder.Clear();
+            IRWriter.EmitToString(interpreter, builder, false);
+            withoutComments = builder.ToString();
+
+            Interpreter c;
+
+            using (StringReader reader = new StringReader(withComments))
+            {
+                c = Parser.GetInterpreterFromIR(reader);
+                c.HandleSafeInstruction(new Instruction());
+            }
+
+            using (StringReader reader = new StringReader(withoutComments))
+            {
+                c = Parser.GetInterpreterFromIR(reader);
+                c.HandleSafeInstruction(new Instruction());
+            }
+
+            Console.Read();
+
+            return;
+
+            TestDOML.RunStringTest(@"
+            // This is a comment
+            // Construct a new System.Color
+            @ Test        = System.Color ...
+            ;             .RGB             = 255, 64, 128 // Implicit 'array'
+
+            @ TheSame     = System.Color ...
+            ;             .RGB->Normalised = 1, 0.25, 0.5, // You can have trailing commas
+
+            @ AgainSame   = System.Color ...
+            ;             .RGB->Hex        = 0xFF4080
+            ;             .Name            = ""OtherName""
+
+            /* Multi Line Comment Blocks are great */
+            @ Copy = System.Color...
+            ;             .RGB = Test.R, Test.G, Test.B
+            ;             .Name = ""Copy""
+            ", 5, Config.READ_EMIT);
+
+            Console.Write(Log.HandleLogs);
+
+            Console.Read();
 #else
             Log.LogHandler += Log_LogHandler;
 
@@ -74,14 +271,14 @@ namespace Test.UnitTests
                 };
 
             InstructionRegister.RegisterConstructor("System.Color", (InterpreterRuntime runtime) =>
-            {
-                Colour colour = new Colour();
-                Colours.Add(colour);
-                if (!runtime.Push(colour, true))
-                {
-                    Log.Error("Creation failed");
-                }
-            });
+                        {
+                            Colour colour = new Colour();
+                            Colours.Add(colour);
+                            if (!runtime.Push(colour, true))
+                            {
+                                Log.Error("Creation failed");
+                            }
+                        });
 
             InstructionRegister.RegisterSetter("RGB", "System.Color", 3, Set_RGB);
             InstructionRegister.RegisterGetter("RGB", "System.Color", 3, Get_RGB);
@@ -106,18 +303,6 @@ namespace Test.UnitTests
 
             Console.Read();
 #endif
-        }
-
-        private static void Log_LogHandler(string message, Log.Type type, bool useLineNumbers)
-        {
-            if (useLineNumbers)
-            {
-                Console.WriteLine($"{type} at Line/Col: {Parser.CurrentLine}/{Parser.CurrentColumn}; {message}");
-            }
-            else
-            {
-                Console.WriteLine(type + ": " + message);
-            }
         }
     }
 }

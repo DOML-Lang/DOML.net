@@ -158,9 +158,9 @@ namespace StaticBindings
         /// <summary>
         /// Writes the namespace signature.
         /// </summary>
-        public void WriteNamespaceSignature()
+        public void WriteNamespaceSignature(string before = "")
         {
-            WriteIndentLine($"namespace {rootNamespace}");
+            WriteIndentLine($"namespace {before}{rootNamespace}");
             WriteIndentLine("{");
             indentLevel++;
         }
@@ -298,11 +298,11 @@ namespace StaticBindings
 
             for (int i = 0; i < info.Length; i++)
             {
-                Write($"!runtime.Pop(out {info[i].ParameterType.FullName} a{i}) || ");
+                Write($"!runtime.Pop(out {info[i].ParameterType.FullName} a{info.Length - i}) || ");
             }
 
             if (info.Length > 0)
-                Write($"!runtime.Push(new {constructorInfo.DeclaringType.FullName}({string.Join(",", Enumerable.Range(0, info.Length).Select(x => "a" + x))}), true)");
+                Write($"!runtime.Push(new {constructorInfo.DeclaringType.FullName}({string.Join(",", Enumerable.Range(1, info.Length).Select(x => "a" + x))}), true)");
             else
                 Write($"!runtime.Push(new {constructorInfo.DeclaringType.FullName}(), true)");
 
@@ -332,13 +332,13 @@ namespace StaticBindings
 
             for (int i = 0; i < info.Length; i++)
             {
-                Write($" || !runtime.Pop(out {info[i].ParameterType.FullName} a{i})");
+                Write($" || !runtime.Pop(out {info[i].ParameterType.FullName} a{info.Length - i})");
             }
 
             if (methodInfo.ReturnType != typeof(void))
             {
                 if (info.Length > 0)
-                    Write($" || !runtime.Push(result.{methodInfo.Name}({string.Join(",", Enumerable.Range(0, info.Length).Select(x => "a" + x))}), true)");
+                    Write($" || !runtime.Push(result.{methodInfo.Name}({string.Join(",", Enumerable.Range(1, info.Length).Select(x => "a" + x))}), true)");
                 else
                     Write($" || !runtime.Push(result.{methodInfo.Name}(), true)");
             }
@@ -357,7 +357,7 @@ namespace StaticBindings
                 indentLevel++;
 
                 if (info.Length > 0)
-                    WriteIndentLine($"result.{methodInfo.Name}({string.Join(", ", Enumerable.Range(0, info.Length).Select(x => "a" + x))});");
+                    WriteIndentLine($"result.{methodInfo.Name}({string.Join(", ", Enumerable.Range(1, info.Length).Select(x => "a" + x))});");
                 else
                     WriteIndentLine($"result.{methodInfo.Name}();");
 
@@ -410,7 +410,7 @@ namespace StaticBindings
 
                 // Write Setter
                 WriteFunctionSignature($"SetProperty{propertyInfo.Name}", "InterpreterRuntime runtime");
-                WriteIndentLine($"if (runtime.Pop(out {propertyInfo.DeclaringType.FullName} result) || !runtime.Pop(out result.{propertyInfo.Name}))");
+                WriteIndentLine($"if (!runtime.Pop(out {propertyInfo.DeclaringType.FullName} result) || !runtime.Pop(out result.{propertyInfo.Name}))");
                 indentLevel++;
                 WriteIndentLine($"Log.Error(\"{objectType}::{name} Setter failed\");");
                 indentLevel--;
@@ -447,7 +447,7 @@ namespace StaticBindings
 
                 // Write Setter
                 WriteFunctionSignature($"SetField{fieldInfo.Name}", "InterpreterRuntime runtime");
-                WriteIndentLine($"if (runtime.Pop(out {fieldInfo.DeclaringType.FullName} result) || !runtime.Pop(out result.{fieldInfo.Name}))");
+                WriteIndentLine($"if (!runtime.Pop(out {fieldInfo.DeclaringType.FullName} result) || !runtime.Pop(out result.{fieldInfo.Name}))");
                 indentLevel++;
                 WriteIndentLine($"Log.Error(\"{objectType}::{name} Setter failed\");");
                 indentLevel--;

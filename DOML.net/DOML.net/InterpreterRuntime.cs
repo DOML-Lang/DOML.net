@@ -33,7 +33,7 @@ namespace DOML.IR
         /// The object registers array, contains all the objects in an indexable array.
         /// </summary>
         /// <remarks>
-        /// Don't use <see cref="objectRegisters.Length"/> and rather use <see cref="RegisterSize"/> for clarity.
+        /// Don't use <c>objectRegisters.Length</c> and rather use <see cref="RegisterSize"/> for clarity.
         /// </remarks>
         private object[] objectRegisters = new object[0];
 
@@ -42,7 +42,7 @@ namespace DOML.IR
         /// Avoid direct indexing the stack (no API access should be provided to index) with the exception of indexing with the value of <see cref="stackPtr"/>.
         /// </summary>
         /// <remarks>
-        /// Don't use <see cref="stack.Length"/> and rather use <see cref="MaxStackSize"/>.
+        /// Don't use <c>stack.Length</c> and rather use <see cref="MaxStackSize"/>.
         /// </remarks>
         private object[] stack = new object[0];
 
@@ -69,7 +69,7 @@ namespace DOML.IR
         /// Does not represent the current size which is represented by <see cref="CurrentStackSize"/>.
         /// </summary>
         /// <remarks>
-        /// Equal to <see cref="stack.Length"/>.
+        /// Equal to <c>stack.Length</c>.
         /// </remarks>
         public int MaxStackSize => stack.Length;
 
@@ -77,7 +77,7 @@ namespace DOML.IR
         /// Represents the current amount of registers.
         /// </summary>
         /// <remarks> 
-        /// Equal to <see cref="objectRegisters.Length"/>. 
+        /// Equal to <c>objectRegisters.Length</c>.
         /// </remarks>
         public int RegisterSize => objectRegisters.Length;
 
@@ -97,7 +97,7 @@ namespace DOML.IR
             }
             else
             {
-                Log.Error("Couldn't clear stack cause stack was empty.");
+                Log.Info("Couldn't clear stack cause stack was empty.");
                 return false;
             }
         }
@@ -116,7 +116,7 @@ namespace DOML.IR
             }
             else
             {
-                Log.Error("Couldn't clear registers cause the register array was empty.");
+                Log.Info("Couldn't clear registers cause the register array was empty.");
                 return false;
             }
         }
@@ -194,7 +194,7 @@ namespace DOML.IR
         ///       at the index is null.
         /// </summary>
         /// <param name="index"> The index to remove the object. </param>
-        /// <returns> If <paramref name="index"/> < <see cref="RegisterSize"/>. </returns>
+        /// <returns> If <paramref name="index"/> <see cref="RegisterSize"/>. </returns>
         public bool RemoveObject(int index)
         {
             if (index < RegisterSize)
@@ -304,7 +304,7 @@ namespace DOML.IR
             }
             else
             {
-                Log.Error("Nothing to pop off the stack, or wanting to pop off object that has as an invalid type.", false);
+                Log.Error("Nothing to pop off the stack, or wanting to pop off object that has as an invalid type.");
                 return false;
             }
         }
@@ -347,7 +347,7 @@ namespace DOML.IR
             }
             else
             {
-                Log.Error("Nothing to peek off the stack.", false);
+                Log.Error("Nothing to peek off the stack.");
                 result = null;
                 return false;
             }
@@ -390,7 +390,7 @@ namespace DOML.IR
             }
             else
             {
-                Log.Error("Nothing to peek off the stack.", false);
+                Log.Error("Nothing to peek off the stack.");
                 result = default(T);
                 return false;
             }

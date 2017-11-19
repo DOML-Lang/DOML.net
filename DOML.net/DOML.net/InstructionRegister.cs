@@ -10,6 +10,8 @@
 using System;
 using System.Collections.Generic;
 using DOML.Logger;
+using System.Linq;
+using System.Reflection;
 
 namespace DOML.IR
 {

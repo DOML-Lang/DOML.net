@@ -27,6 +27,27 @@ namespace DOML.Logger
         }
 
         /// <summary>
+        /// Information about the log.
+        /// </summary>
+        public struct Information
+        {
+            public int StartingLine;
+            public int CurrentLine;
+
+            public int StartingColumn;
+            public int CurrentColumn;
+
+            public Information(int startingLine, int currentLine, int startingColumn, int currentColumn)
+            {
+                StartingLine = startingLine;
+                CurrentLine = currentLine;
+
+                StartingColumn = startingColumn;
+                CurrentColumn = currentColumn;
+            }
+        }
+
+        /// <summary>
         /// If true it'll handle logs else it won't.
         /// </summary>
         public static bool HandleLogs { get; set; } = true;
@@ -35,36 +56,46 @@ namespace DOML.Logger
         /// The handler for all logs.
         /// Event since that means you can have multiple handlers.
         /// </summary>
-        public static event Action<string, Type, bool> LogHandler;
+        public static event Action<string, Type, Information?> LogHandler = (string message, Log.Type type, Information? info) =>
+        {
+            if (info != null)
+            {
+                Console.WriteLine($"{type} from Line/Col: {info.Value.StartingLine}/{info.Value.StartingColumn} to Line/Col: {info.Value.CurrentLine}/{info.Value.CurrentColumn}; {message}");
+            }
+            else
+            {
+                Console.WriteLine(type + ": " + message);
+            }
+        };
 
         /// <summary>
         /// Log an error.
         /// </summary>
         /// <param name="error"> The error to log. </param>
-        /// <param name="useLineNumbers"> If true use the current line numbers. </param>
-        public static void Error(string error, bool useLineNumbers = true)
+        /// <param name="info"> Line information. </param>
+        public static void Error(string error, Information? info = null)
         {
-            if (HandleLogs) LogHandler(error, Type.ERROR, useLineNumbers);
+            if (HandleLogs) LogHandler(error, Type.ERROR, info);
         }
 
         /// <summary>
         /// Log a warning.
         /// </summary>
         /// <param name="warning"> The warning to log. </param>
-        /// <param name="useLineNumbers"> If true use the current line numbers. </param>
-        public static void Warning(string warning, bool useLineNumbers = true)
+        /// <param name="info"> Line information. </param>
+        public static void Warning(string warning, Information? info = null)
         {
-            if (HandleLogs) LogHandler(warning, Type.WARNING, useLineNumbers);
+            if (HandleLogs) LogHandler(warning, Type.WARNING, info);
         }
 
         /// <summary>
         /// Log information.
         /// </summary>
-        /// <param name="info"> The info to log. </param>
-        /// <param name="useLineNumbers"> If true use the current line numbers. </param>
-        public static void Info(string info, bool useLineNumbers = true)
+        /// <param name="infoLog"> The info to log. </param>
+        /// <param name="info"> Line information. </param>
+        public static void Info(string infoLog, Information? info = null)
         {
-            if (HandleLogs) LogHandler(info, Type.INFO, useLineNumbers);
+            if (HandleLogs) LogHandler(infoLog, Type.INFO, info);
         }
     }
 }

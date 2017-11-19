@@ -22,30 +22,114 @@ namespace DOML
     /// </summary>
     public static class Parser
     {
-        public static int StartingLine { get; private set; }
-        public static int StartingColumn { get; private set; }
-        public static int CurrentLine { get; private set; }
-        public static int CurrentColumn { get; private set; }
+        public enum ReadMode
+        {
+            DOML,
+            IR,
+            BINARY_Length,
+            BINARY_Native,
+        }
 
+        /// <summary>
+        /// Starting line used for logging purposes.
+        /// </summary>
+        private static int StartingLine;
+
+        /// <summary>
+        /// Starting column used for logging purposes.
+        /// </summary>
+        private static int StartingColumn;
+
+        /// <summary>
+        /// Current line used for logging purposes.
+        /// </summary>
+        private static int CurrentLine;
+
+        /// <summary>
+        /// Current column used for logging purposes.
+        /// </summary>
+        private static int CurrentColumn;
+
+        /// <summary>
+        /// Current character that has just been read.
+        /// </summary>
         private static char currentCharacter;
-        private static string currentVariable; // for ...
+
+        /// <summary>
+        /// Current variable for the `...` statements.
+        /// </summary>
+        private static string currentVariable;
+
+        /// <summary>
+        /// This is just to allow an extra ',' at the end.
+        /// It basically tracks the oldLine == currentLine from previously.
+        /// </summary>
+        private static bool goToStatement = false;
+
+        /// <summary>
+        /// The next register to use.
+        /// </summary>
         private static int nextRegister;
+
+        /// <summary>
+        /// The maximum amount of spaces this script uses.
+        /// </summary>
         private static int maxSpaces;
 
+        /// <summary>
+        /// All the register informtation.
+        /// </summary>
         private static Dictionary<string, CreationObjectInfo> Registers { get; } = new Dictionary<string, CreationObjectInfo>();
 
+        /// <summary>
+        /// Current list of instructions.
+        /// </summary>
         private static List<Instruction> Instructions { get; } = new List<Instruction>();
+
+        /// <summary>
+        /// Log an error using current line information.
+        /// </summary>
+        /// <param name="error"> What to log. </param>
+        public static void LogError(string error) => Log.Error(error, new Log.Information(StartingLine, CurrentLine, StartingColumn, CurrentColumn));
+
+        /// <summary>
+        /// Log an warning using current line information.
+        /// </summary>
+        /// <param name="warning"> What to log. </param>
+        public static void LogWarning(string warning) => Log.Warning(warning, new Log.Information(StartingLine, CurrentLine, StartingColumn, CurrentColumn));
+
+        /// <summary>
+        /// Log an info using current line information.
+        /// </summary>
+        /// <param name="info"> What to log. </param>
+        public static void LogInfo(string info) => Log.Info(info, new Log.Information(StartingLine, CurrentLine, StartingColumn, CurrentColumn));
 
         /// <summary>
         /// Get an interpreter from a file path.
         /// </summary>
         /// <param name="filePath"> The path to the file to open. </param>
+        /// <param name="readMode"> What read mode to use. </param>
         /// <returns> An interpreter instance. </returns>
-        public static Interpreter GetInterpreterFromPath(string filePath, bool IR = false)
+        public static Interpreter GetInterpreterFromPath(string filePath, ReadMode readMode = ReadMode.DOML)
         {
             if (File.Exists(filePath))
-                using (StreamReader reader = new StreamReader(new FileStream(filePath, FileMode.Open)))
-                    return GetInterpreter(reader, IR);
+                switch (readMode)
+                {
+                case ReadMode.DOML:
+                    using (StreamReader reader = new StreamReader(new FileStream(filePath, FileMode.Open)))
+                        return GetInterpreter(reader);
+                case ReadMode.IR:
+                    using (StreamReader reader = new StreamReader(new FileStream(filePath, FileMode.Open)))
+                        return GetInterpreterFromIR(reader);
+                case ReadMode.BINARY_Length:
+                    using (BinaryReader reader = new BinaryReader(new FileStream(filePath, FileMode.Open)))
+                        return GetInterpreterFromBinary(reader, true);
+                case ReadMode.BINARY_Native:
+                    using (BinaryReader reader = new BinaryReader(new FileStream(filePath, FileMode.Open)))
+                        return GetInterpreterFromBinary(reader, false);
+                default:
+                    throw new NotImplementedException("Case Not Implemented; This is a bug.");
+                }
             else
                 throw new FileNotFoundException("File Path Invalid");
         }
@@ -54,24 +138,42 @@ namespace DOML
         /// Get an interpreter from text.
         /// </summary>
         /// <param name="text"> The text to interpret. </param>
+        /// <param name="readMode"> What read mode to use. </param>
         /// <returns> An interpreter instance. </returns>
-        public static Interpreter GetInterpreterFromText(string text, bool IR = false)
+        /// <remarks> This is significantly slower for binary work. </remarks>
+        public static Interpreter GetInterpreterFromText(string text, ReadMode readMode = ReadMode.DOML)
         {
             if (text != null)
-                using (StringReader reader = new StringReader(text))
-                    return GetInterpreter(reader, IR);
+                switch (readMode)
+                {
+                case ReadMode.DOML:
+                    using (StringReader reader = new StringReader(text))
+                        return GetInterpreter(reader);
+                case ReadMode.IR:
+                    using (StringReader reader = new StringReader(text)) return GetInterpreterFromIR(reader);
+                case ReadMode.BINARY_Length:
+                    using (BinaryWriter writer = BinaryWriter.Null)
+                    {
+                        foreach (char chr in text)
+                            writer.Write(Convert.ToByte(chr));
+
+                        using (BinaryReader reader = new BinaryReader(writer.BaseStream))
+                            return GetInterpreterFromBinary(reader, true);
+                    }
+                case ReadMode.BINARY_Native:
+                    using (BinaryWriter writer = BinaryWriter.Null)
+                    {
+                        foreach (char chr in text)
+                            writer.Write(Convert.ToByte(chr));
+
+                        using (BinaryReader reader = new BinaryReader(writer.BaseStream))
+                            return GetInterpreterFromBinary(reader, false);
+                    }
+                default:
+                    throw new NotImplementedException("Case Not Implemented; This is a bug.");
+                }
             else
                 throw new ArgumentNullException("Text is null");
-        }
-
-        private static bool AllowedSeperator(char value)
-        {
-            // Maybe bounding checks
-            return value == '[' || value == ']'
-                || value == '{' || value == '}'
-                || value == '(' || value == ')'
-                || value == '<' || value == '>'
-                || value == '-';
         }
 
         private static string AdvanceLine(TextReader reader)
@@ -79,6 +181,22 @@ namespace DOML
             CurrentLine++;
             CurrentColumn = 0;
             return reader.ReadLine();
+        }
+
+        private static bool AdvanceOnce(TextReader reader)
+        {
+            int last = reader.Read();
+            currentCharacter = (char)last;
+
+            if (currentCharacter == '\n')
+            {
+                ++CurrentLine;
+                CurrentColumn = 0;
+            }
+            else
+                ++CurrentColumn;
+
+            return last >= 0;
         }
 
         private static bool Advance(TextReader reader, int amount)
@@ -100,11 +218,11 @@ namespace DOML
             return last >= 0;
         }
 
-        private static StringBuilder ParseIdentifierStatement(TextReader reader, string prefix, char[] breakOn, bool allowDot, bool allowSeperators)
+        private static StringBuilder ParseIdentifierStatement(TextReader reader, string prefix, char[] breakOn, bool allowDot, bool allowSeperator)
         {
             if (!char.IsLetter(currentCharacter) && currentCharacter != '_')
             {
-                Log.Error("Not a valid identifier", true);
+                LogError("Not a valid identifier");
                 return null;
             }
 
@@ -114,11 +232,12 @@ namespace DOML
             variableName.Append(currentCharacter);
 
             // Get identifier before '='
-            while (Advance(reader, 1))
+            while (AdvanceOnce(reader))
             {
-                if (allowSeperators && AllowedSeperator(currentCharacter))
+                if (allowSeperator && currentCharacter == '-' && (char)reader.Peek() == '>')
                 {
                     variableName.Append('.');
+                    AdvanceOnce(reader);
                     continue;
                 }
                 else if (breakOn.Contains(currentCharacter) || char.IsWhiteSpace(currentCharacter) || (currentCharacter == '.' && reader.Peek() == '.'))
@@ -127,7 +246,7 @@ namespace DOML
                 }
                 else if (char.IsLetterOrDigit(currentCharacter) == false && currentCharacter != '_' && currentCharacter == '.' && allowDot == false)
                 {
-                    Log.Error($"Invalid character for identifier starting at Line: /{StartingLine}, Column: /{StartingColumn}", true);
+                    LogError($"Invalid character for identifier");
                     return null;
                 }
                 else
@@ -141,7 +260,7 @@ namespace DOML
 
         private static bool ParseCreationStatement(TextReader reader)
         {
-            Advance(reader, 1); // eat '@'
+            AdvanceOnce(reader); // eat '@'
             currentVariable = null; // just so the '...' doesn't carry over awkwardly
             IgnoreWhitespace(reader);
 
@@ -155,11 +274,11 @@ namespace DOML
             IgnoreWhitespace(reader);
             if (currentCharacter != '=')
             {
-                Log.Error($"Missing '=' starting at Line: /{CurrentLine}, Column: /{CurrentColumn}", true);
+                LogError($"Missing '='");
                 return false;
             }
 
-            Advance(reader, 1);
+            AdvanceOnce(reader);
             IgnoreWhitespace(reader);
 
             StringBuilder creationName = ParseIdentifierStatement(reader, "new ", new char[]{ '\n', ';' }, true, false);
@@ -174,11 +293,12 @@ namespace DOML
                 Advance(reader, 2);
                 if (currentCharacter != '.')
                 {
-                    Log.Error("Can't end a line on two dots, did you mean to do three?", true);
+                    LogError("Can't end a line on two dots, did you mean to do three?");
                     return false;
                 }
 
                 currentVariable = variableName;
+                AdvanceOnce(reader);
             }
 
             Registers.Add(variableName, new CreationObjectInfo(nextRegister++, creationName.ToString(4, creationName.Length - 4)));
@@ -189,7 +309,7 @@ namespace DOML
 
         private static bool ParseSetStatement(TextReader reader)
         {
-            Advance(reader, 1); // eat ';'
+            AdvanceOnce(reader); // eat ';'
             IgnoreWhitespace(reader);
             CreationObjectInfo objectInfoToPush; // Get the object to push
             string variableName;
@@ -200,7 +320,7 @@ namespace DOML
             {
                 if (currentVariable == null || !Registers.ContainsKey(currentVariable))
                 {
-                    Log.Error("Are you missing a '...' in the previous line.  No previous 'variable' history found.", true);
+                    LogError("Are you missing a '...' in the previous line.  No previous 'variable' history found.");
                     return false;
                 }
 
@@ -215,13 +335,13 @@ namespace DOML
 
                 if (currentCharacter != '.')
                 {
-                    Log.Error($"Missing '.' starting at Line: /{StartingLine}, Column: /{StartingColumn}", true);
+                    LogError($"Missing '.' starting at Line: /{StartingLine}, Column: /{StartingColumn}");
                     return false;
                 }
 
                 if (Registers.ContainsKey(variableName) == false)
                 {
-                    Log.Error($"No previous 'variable' history found for /{variableName}.", true);
+                    LogError($"No previous 'variable' history found for /{variableName}.");
                     return false;
                 }
 
@@ -229,26 +349,10 @@ namespace DOML
             }
 
             // The object ID will be pushed last next we get what we are setting
-            Advance(reader, 1); // eat up the '.'
+            AdvanceOnce(reader); // eat up the '.'
 
             parsed = ParseIdentifierStatement(reader, $"set {objectInfoToPush.ObjectType}::", new char[] { '/', '=' }, true, true);
             if (parsed == null) return false;
-
-            // Remove any trailing '.'
-            // Reasonably efficient not too worried and won't run if no trailings
-            if (parsed[parsed.Length - 1] == '.')
-            {
-                for (int i = parsed.Length - 1, depth = -1; i >= 0; i--)
-                {
-                    if (parsed[i] != '.')
-                    {
-                        parsed.Remove(depth, parsed.Length - depth);
-                        break;
-                    }
-
-                    depth = i;
-                }
-            }
 
             variableName = parsed.ToString();
             IgnoreWhitespace(reader);
@@ -256,7 +360,7 @@ namespace DOML
             // Should start with a '='
             if (currentCharacter != '=')
             {
-                Log.Error($"Missing '=' starting at Line: /{StartingLine}, Column: /{StartingColumn}", true);
+                LogError($"Missing '=' starting at Line: /{StartingLine}, Column: /{StartingColumn}");
                 return false;
             }
 
@@ -265,15 +369,28 @@ namespace DOML
 
             do
             {
-                Advance(reader, 1); // eat '=' or ','
+                AdvanceOnce(reader); // eat '=' or ','
+                int oldLine = CurrentLine;
+
                 IgnoreWhitespace(reader);
-                if (currentCharacter == '@' || currentCharacter == ';' || reader.Peek() <= 0)
-                    // This allows you to have a comma at the very end despite being a little hacky
+                if (currentCharacter == '/')
+                    ParseComments(reader);
+
+                if (char.IsDigit(currentCharacter) == false && (currentCharacter == '@' || currentCharacter == ';' || reader.Peek() <= 0 || (oldLine != CurrentLine && (currentCharacter == '.' || values == InstructionRegister.SizeOf[variableName]))))
+                {
+                    // - The very first set before the first && is just some ways to short circuit early, to save speed
+                    // - The first three are just simple checks these can't occur anywhere else so they denote the statement, with the third being the fact that the stream has no ended
+                    // - The last one is comprised of a ';' less statement, and does some easier checks before bigger ones, first check is the separate line check which is required
+                    //      - Then is the quick check which is if the character is '.' then we have to be of a new statement, and the value check is just a quicker way then doing a lookahead
+                    //      - If you don't have enough values, then you'll get an error about how the parsing values went wrong, and a line number so while its more that you have too few variables
+                    //        Its a fine enough error message, and the line number basically makes it a non issue.
+                    goToStatement = oldLine != CurrentLine;
                     break;
+                }
 
                 if (ParseValue(reader, ref values) == false)
                 {
-                    Log.Error("Parsing values went wrong");
+                    LogError("Parsing values went wrong");
                     return false;
                 }
 
@@ -281,9 +398,9 @@ namespace DOML
             } while (currentCharacter == ',');
 
             // If we don't have enough values - compile time error
-            if (values < InstructionRegister.SizeOf[variableName])
+            if (values != InstructionRegister.SizeOf[variableName])
             {
-                Log.Error("Too few variables.");
+                LogError("Too few or too many variables.");
                 return false;
             }
 
@@ -298,126 +415,421 @@ namespace DOML
         }
 
         /// <summary>
+        /// Get an interpreter from binary data.
+        /// </summary>
+        /// <param name="reader"> The reader. </param>
+        /// <param name="lengthMethod"></param>
+        /// <returns></returns>
+        public static Interpreter GetInterpreterFromBinary(BinaryReader reader, bool lengthMethod)
+        {
+            if (Instructions.Count > 0) Instructions.Clear();
+            currentCharacter = char.MinValue;
+            StartingColumn = StartingLine = CurrentLine = CurrentColumn = 0;
+            byte opCode;
+            object obj;
+
+            while (reader.PeekChar() != -1)
+            {
+                // Read Opcode
+                opCode = reader.ReadByte();
+                if (opCode >= (byte)Opcodes.COUNT_OF_INSTRUCTIONS)
+                {
+                    Log.Error("Opcode too large");
+                    return null;
+                }
+
+                if (lengthMethod)
+                {
+                    if (ParseBinaryValueUsingLength(reader, opCode, out obj) == false) return null;
+                }
+                else if (ParseBinaryValueUsingNative(reader, opCode, out obj) == false) return null;
+
+                Instructions.Add(new Instruction(opCode, obj));
+            }
+
+            return new Interpreter(Instructions);
+        }
+
+        public static Interpreter GetInterpreterFromIR(TextReader reader)
+        {
+            if (Instructions.Count > 0) Instructions.Clear();
+            StartingColumn = StartingLine = CurrentLine = CurrentColumn = 0;
+            string currentLine = reader.ReadLine();
+            int index = 0;
+
+            while (currentLine != null)
+            {
+                while (char.IsWhiteSpace(currentLine[index]))
+                    ++index;
+
+                if (currentLine[index] == ';')
+                {
+                    currentLine = reader.ReadLine();
+                    continue;
+                }
+
+                // OPCODE
+                char firstDigit = currentLine[index++];
+                int value;
+                currentCharacter = currentLine[index];
+
+                if (char.IsDigit(firstDigit) == false)
+                {
+                    LogError("Invalid Opcode");
+                    return null;
+                }
+
+                if (char.IsDigit(currentCharacter))
+                {
+                    // Two Digits
+                    value = (firstDigit == '1' ? 10 : 0) + currentCharacter - '0'; // Since the maximum value is 18 so far, we can just do this, and save a multiplication
+                    ++index;
+                }
+                else
+                {
+                    // One Digit
+                    value = firstDigit - '0';
+                }
+
+                if (value >= (int)Opcodes.COUNT_OF_INSTRUCTIONS)
+                {
+                    LogError("Invalid Opcode");
+                    return null;
+                }
+
+                Opcodes opcode = (Opcodes)value;
+
+                while (char.IsWhiteSpace(currentLine[index]))
+                {
+                    if (++index >= currentLine.Length)
+                    {
+                        LogError("Missing parameter");
+                        return null;
+                    }
+                }
+
+                int initialIndex = index;
+                bool quoted = false;
+
+                do
+                {
+                    currentCharacter = currentLine[index];
+                    if (((char.IsWhiteSpace(currentCharacter) || currentCharacter == ',') && quoted == false) || index >= currentLine.Length) break;
+                    if (currentCharacter == '"') quoted = !quoted;
+                    index++;
+                }
+                while (true);
+
+                if (index >= currentLine.Length || !ParseValueForOpCode(opcode, currentLine.Substring(initialIndex, index - initialIndex), out object parameter))
+                {
+                    LogError("Invalid Parameter");
+                    return null;
+                }
+
+                while (currentLine[index] != '\n' && char.IsWhiteSpace(currentLine[index]))
+                {
+                    if (++index >= currentLine.Length)
+                    {
+                        break;
+                    }
+                }
+
+                Instructions.Add(new Instruction(opcode, parameter));
+
+                if (index >= currentLine.Length)
+                {
+                    break;
+                }
+                else if (currentLine[index] == ',')
+                {
+                    ++index;
+                }
+                else if (currentLine[index] == ';' || currentLine[index] == '\n')
+                {
+                    currentLine = reader.ReadLine();
+                }
+                else
+                {
+                    LogError("Invalid Character: " + currentLine[index]);
+                    return null;
+                }
+            }
+
+            return new Interpreter(Instructions);
+        }
+
+        /// <summary>
         /// Create a new interpreter.
         /// </summary>
         /// <param name="reader"> The reader to read from. </param>
         /// <returns> An interpreter instance. </returns>
         /// <remarks> Remember to dispose the reader if calling this directly. </remarks>
-        public static Interpreter GetInterpreter(TextReader reader, bool IR)
+        public static Interpreter GetInterpreter(TextReader reader)
         {
-            Instructions.Clear();
+            if (Instructions.Count > 0) Instructions.Clear();
             currentCharacter = char.MinValue;
             StartingColumn = StartingLine = CurrentLine = CurrentColumn = 0;
 
-            if (IR)
+            if (Registers.Count > 0) Registers.Clear();
+            currentVariable = null;
+            nextRegister = 0;
+            maxSpaces = 0;
+
+            Instructions.Add(new Instruction()); // To be set at the end - ReserveSpace
+            Instructions.Add(new Instruction()); // To be set at the end - ReserveRegisters
+
+            AdvanceOnce(reader); // Kickstart
+
+            while (true)
             {
-                // This is relatively efficient, I'm not sold on Enum.TryParse yet though
-                // This is around 100x more efficient then the last one
-                while (currentCharacter == ';' || Advance(reader, 1))
+                int oldLine = CurrentLine;
+
+                // Remove whitespace/comments before first line
+                if (!ParseComments(reader)) return null;
+
+                // If we at end of line then just return the interpreter instance
+                if (reader.Peek() < 0)
+                    break;
+
+                if (currentCharacter == '@')
                 {
-                    if (char.IsWhiteSpace(currentCharacter)) continue;
-
-                    if (currentCharacter == ';')
-                    {
-                        AdvanceLine(reader);
-                        currentCharacter = char.MinValue;
-                        continue;
-                    }
-
-                    // Get Opcode
-                    StringBuilder builder = new StringBuilder(currentCharacter);
-                    while (Advance(reader, 1) && char.IsWhiteSpace(currentCharacter) == false)
-                    {
-                        builder.Append(char.ToUpper(currentCharacter));
-                    }
-
-                    if (char.IsWhiteSpace(currentCharacter) == false)
-                    {
-                        Log.Error("Invalid Line");
+                    if (ParseCreationStatement(reader) == false)
                         return null;
-                    }
-
-                    // This has to be tested to see how fast it is
-                    if (!Enum.TryParse(builder.ToString(), out Opcodes opcode))
-                    {
-                        Log.Error("Invalid Opcode");
-                        return null;
-                    }
-
-                    IgnoreWhitespace(reader);
-
-                    if (reader.Peek() < 0)
-                    {
-                        Log.Error("No Parameter");
-                        return null;
-                    }
-
-                    builder.Clear();
-
-                    do
-                    {
-                        builder.Append(currentCharacter);
-                    }
-                    while (Advance(reader, 1) && char.IsWhiteSpace(currentCharacter) == false);
-
-                    if (char.IsWhiteSpace(currentCharacter) == false)
-                    {
-                        Log.Error("Invalid Line");
-                        return null;
-                    }
-
-                    if (!ParseValueForOpCode(opcode, builder.ToString(), out object parameter))
-                    {
-                        Log.Error("Invalid Parameter");
-                        return null;
-                    }
-
-                    Instructions.Add(new Instruction(opcode, parameter));
                 }
-
-                return new Interpreter(Instructions);
-            }
-            else
-            {
-                Registers.Clear();
-                currentVariable = null;
-                nextRegister = 0;
-                maxSpaces = 0;
-
-                Instructions.Add(new Instruction()); // To be set at the end - ReserveSpace
-                Instructions.Add(new Instruction()); // To be set at the end - ReserveRegisters
-
-                while (currentCharacter == '@' || currentCharacter == ';' || Advance(reader, 1))
+                else if (currentCharacter == ';' || oldLine != CurrentLine || goToStatement)
                 {
-                    // Remove whitespace/comments before first line
-                    ParseComments(reader);
-
-                    // If we at end of line then just return the interpreter instance
-                    if (reader.Peek() < 0)
-                        return new Interpreter(Instructions);
-
-                    switch (currentCharacter)
-                    {
-                    case '@':
-                        if (ParseCreationStatement(reader) == false)
-                            return null;
-                        break;
-                    case ';':
-                        if (ParseSetStatement(reader) == false)
-                            return null;
-                        break;
-                    default:
-                        // Something went wrong in remove white space or similar so just return null
-                        Log.Error("Invalid character", true);
+                    goToStatement = false;
+                    if (ParseSetStatement(reader) == false)
                         return null;
-                    }
                 }
-
-                Instructions[0] = new Instruction(Opcodes.MAKE_SPACE, maxSpaces);
-                Instructions[1] = new Instruction(Opcodes.MAKE_REG, nextRegister);
+                else
+                {
+                    // Something went wrong in remove white space or similar so just return null
+                    // It could also be just a syntax error that they have initiated
+                    LogError("Invalid character " + currentCharacter);
+                    return null;
+                }
             }
+
+            Instructions[0] = new Instruction(Opcodes.MAKE_SPACE, maxSpaces);
+            Instructions[1] = new Instruction(Opcodes.MAKE_REG, nextRegister);
 
             return new Interpreter(Instructions);
+        }
+
+        /// <summary>
+        /// This method is more compatible with other methods,
+        /// however is considerably slower than the more native solution.
+        /// </summary>
+        /// <remarks>
+        /// Considerably slower if length is odd and it is a number
+        /// as it has to get the bytes and pad them.
+        /// </remarks>
+        /// <param name="reader"></param>
+        /// <param name="opCode"></param>
+        /// <param name="obj"></param>
+        /// <returns></returns>
+        private static bool ParseBinaryValueUsingLength(BinaryReader reader, byte opCode, out object obj)
+        {
+            // Represents the length in bytes
+            // Unless the opcode wants a string in which case it represents how many characters there are
+            byte length = reader.ReadByte();
+            if (length == 0)
+                Log.Error("Length == 0");
+
+            // Read Parameter Data
+            switch ((Opcodes)opCode)
+            {
+            case Opcodes.NOP:
+            case Opcodes.COMMENT:
+                obj = reader.ReadChars(length).ToString();
+                break;
+            case Opcodes.CALL:
+                obj = "get " + reader.ReadChars(length).ToString();
+                break;
+            case Opcodes.NEW:
+                obj = "new " + reader.ReadChars(length).ToString();
+                break;
+            case Opcodes.SET:
+                obj = "set " + reader.ReadChars(length).ToString();
+                break;
+            case Opcodes.PUSH:
+                return ParseValueForOpCode((Opcodes)opCode, reader.ReadChars(length).ToString(), out obj);
+            case Opcodes.MAKE_SPACE:
+            case Opcodes.MAKE_REG:
+            case Opcodes.COPY:
+            case Opcodes.REG_OBJ:
+            case Opcodes.UNREG_OBJ:
+            case Opcodes.PUSH_OBJ:
+            case Opcodes.POP:
+                if (length > 4)
+                {
+                    Log.Error("Integer is to long");
+                    obj = null;
+                    return false;
+                }
+
+                if (length == 1)
+                    obj = (int)reader.ReadByte();
+                else if (length == 2)
+                    obj = (int)reader.ReadInt16();
+                else if (length == 4)
+                    obj = reader.ReadInt32();
+                else
+                {
+                    byte[] bytes = new byte[4] { 0, 0, 0, 0 };
+                    reader.Read(bytes, 0, 4 - length);
+
+                    if (!BitConverter.IsLittleEndian)
+                        Array.Reverse(bytes);
+
+                    obj = BitConverter.ToInt32(bytes, 0);
+                }
+                break;
+            case Opcodes.PUSH_INT:
+                if (length > 8)
+                {
+                    Log.Error("Integer is to long");
+                    obj = null;
+                    return false;
+                }
+
+                if (length == 1)
+                    obj = (long)reader.ReadByte();
+                else if (length == 2)
+                    obj = (long)reader.ReadInt16();
+                else if (length == 4)
+                    obj = (long)reader.ReadInt32();
+                else if (length == 8)
+                    obj = reader.ReadInt64();
+                else
+                {
+                    byte[] bytes = new byte[8] { 0, 0, 0, 0, 0, 0, 0, 0 };
+                    reader.Read(bytes, 0, 8 - length);
+
+                    if (!BitConverter.IsLittleEndian)
+                        Array.Reverse(bytes);
+
+                    obj = BitConverter.ToInt64(bytes, 0);
+                }
+                break;
+            case Opcodes.PUSH_NUM:
+                if (length > 8)
+                {
+                    Log.Error("Floating Point is to long");
+                    obj = null;
+                    return false;
+                }
+
+                if (length == 4)
+                    obj = (double)reader.ReadSingle();
+                if (length == 8)
+                    obj = reader.ReadDouble();
+                else
+                {
+                    byte[] bytes = new byte[8] { 0, 0, 0, 0, 0, 0, 0, 0 };
+                    reader.Read(bytes, 0, 8 - length);
+
+                    if (!BitConverter.IsLittleEndian)
+                        Array.Reverse(bytes);
+
+                    obj = BitConverter.ToDouble(bytes, 0);
+                }
+                break;
+            case Opcodes.PUSH_DEC:
+                if (length > 16)
+                {
+                    Log.Error("Decimal is to long");
+                    obj = null;
+                    return false;
+                }
+
+                if (length == 16)
+                    obj = reader.ReadDecimal();
+                else
+                {
+                    byte[] bytes = new byte[16] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+                    reader.Read(bytes, 0, 16 - length);
+
+                    if (!BitConverter.IsLittleEndian)
+                        Array.Reverse(bytes);
+
+                    obj = new decimal(new int[4] { BitConverter.ToInt32(bytes, 0), BitConverter.ToInt32(bytes, 4), BitConverter.ToInt32(bytes, 8), BitConverter.ToInt32(bytes, 12) });
+                }
+                break;
+            case Opcodes.PUSH_STR:
+                obj = reader.ReadChars(length).ToString();
+                break;
+            case Opcodes.PUSH_BOOL:
+                if (length > 1)
+                {
+                    Log.Error("Boolean is to long");
+                    obj = null;
+                    return false;
+                }
+
+                obj = reader.ReadBoolean();
+                break;
+            default:
+                Log.Error("Forgot to include a case.  This is an error on DOML's side.  Please report.");
+                obj = null;
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool ParseBinaryValueUsingNative(BinaryReader reader, byte opCode, out object obj)
+        {
+            // Read Parameter Data
+            switch ((Opcodes)opCode)
+            {
+            case Opcodes.NOP:
+            case Opcodes.COMMENT:
+                obj = reader.ReadString();
+                break;
+            case Opcodes.CALL:
+                obj = "get " + reader.ReadString();
+                break;
+            case Opcodes.NEW:
+                obj = "new " + reader.ReadString();
+                break;
+            case Opcodes.SET:
+                obj = "set " + reader.ReadString();
+                break;
+            case Opcodes.PUSH:
+                return ParseValueForOpCode((Opcodes)opCode, reader.ReadString(), out obj);
+            case Opcodes.MAKE_SPACE:
+            case Opcodes.MAKE_REG:
+            case Opcodes.COPY:
+            case Opcodes.REG_OBJ:
+            case Opcodes.UNREG_OBJ:
+            case Opcodes.PUSH_OBJ:
+            case Opcodes.POP:
+                obj = reader.ReadInt32();
+                break;
+            case Opcodes.PUSH_INT:
+                obj = reader.ReadInt64();
+                break;
+            case Opcodes.PUSH_NUM:
+                obj = reader.ReadDouble();
+                break;
+            case Opcodes.PUSH_DEC:
+                obj = reader.ReadDecimal();
+                break;
+            case Opcodes.PUSH_STR:
+                obj = reader.ReadString();
+                break;
+            case Opcodes.PUSH_BOOL:
+                obj = reader.ReadBoolean();
+                break;
+            default:
+                Log.Error("Forgot to include a case.  This is an error on DOML's side.  Please report.");
+                obj = null;
+                return false;
+            }
+
+            return true;
         }
 
         private static bool ParseValueForOpCode(Opcodes opcode, string valueToParse, out object obj)
@@ -437,20 +849,8 @@ namespace DOML
             case Opcodes.SET:
                 obj = "set " + valueToParse;
                 return true;
-            case Opcodes.PANIC:
             case Opcodes.PUSH:
-                if (valueToParse[0] == '\'' && valueToParse[valueToParse.Length - 1] == '\'')
-                {
-                    bool result = char.TryParse(valueToParse.Trim('\''), out char temp);
-                    obj = temp;
-                    return result;
-                }
-                else if (valueToParse[0] == '"' && valueToParse[valueToParse.Length - 1] == '"')
-                {
-                    obj = valueToParse.Trim('"');
-                    return true;
-                }
-                else if (valueToParse.Any(x => char.IsDigit(x) || x == '.'))
+                if (valueToParse.Any(x => char.IsDigit(x) || x == '.'))
                 {
                     if (valueToParse.Contains('.'))
                     {
@@ -472,8 +872,8 @@ namespace DOML
                 }
                 else
                 {
-                    obj = null;
-                    return false;
+                    obj = valueToParse;
+                    return true;
                 }
             case Opcodes.MAKE_SPACE:
             case Opcodes.MAKE_REG:
@@ -482,9 +882,6 @@ namespace DOML
             case Opcodes.UNREG_OBJ:
             case Opcodes.PUSH_OBJ:
             case Opcodes.POP:
-            case Opcodes.COMP_MAX:
-            case Opcodes.COMP_SIZE:
-            case Opcodes.COMP_REG:
                 {
                     bool result = int.TryParse(valueToParse, out int temp);
                     obj = temp;
@@ -510,14 +907,8 @@ namespace DOML
                 }
             case Opcodes.PUSH_STR:
                 {
-                    obj = valueToParse.Trim('"');
+                    obj = valueToParse;
                     return true;
-                }
-            case Opcodes.PUSH_CHAR:
-                {
-                    bool result = char.TryParse(valueToParse.Trim('\''), out char temp);
-                    obj = temp;
-                    return result;
                 }
             case Opcodes.PUSH_BOOL:
                 {
@@ -528,7 +919,7 @@ namespace DOML
             case Opcodes.COUNT_OF_INSTRUCTIONS:
             default:
                 obj = null;
-                Log.Error("Invalid Instruction");
+                LogError("Invalid Instruction");
                 return false;
             }
         }
@@ -536,13 +927,8 @@ namespace DOML
         private static bool ParseValue(TextReader reader, ref int values)
         {
             if (currentCharacter == '"')
-                // We know its a string so don't even try to handle it as something else
-                return ParseStringOrCharacter(reader, false, ref values);
-            else if (currentCharacter == '\'')
-                // We know its a character so again don't even try to handle it as something else
-                return ParseStringOrCharacter(reader, true, ref values);
+                return ParseString(reader, ref values);
             else if (char.IsDigit(currentCharacter) || currentCharacter == '.' || currentCharacter == '-' || currentCharacter == '+' || currentCharacter == '$')
-                // We know it has to be a number, nothing else
                 return ParseNumber(reader, ref values);
             else
             {
@@ -550,11 +936,12 @@ namespace DOML
                 StringBuilder builder = new StringBuilder();
                 do
                 {
-                    builder.Append(AllowedSeperator(currentCharacter) ? '.' : currentCharacter);
+                    builder.Append(currentCharacter);
                 }
-                while (Advance(reader, 1) && currentCharacter != ',' && char.IsWhiteSpace(currentCharacter) == false);
+                while (AdvanceOnce(reader) && currentCharacter != ',' && char.IsWhiteSpace(currentCharacter) == false);
 
                 string result = builder.ToString();
+
                 if (bool.TryParse(result, out bool res))
                 {
                     Instructions.Add(new Instruction(Opcodes.PUSH_BOOL, res));
@@ -563,14 +950,14 @@ namespace DOML
                 }
                 else if (result.Contains('.'))
                 {
-                    string[] splitObject = result.Split('.');
+                    string[] splitObjects = result.Split('.');
                     string callee;
-                    if (Registers.ContainsKey(splitObject[0]))
+                    if (Registers.ContainsKey(splitObjects[0]))
                     {
                         // We are referring to one of our objects
-                        CreationObjectInfo info = Registers[splitObject[0]];
+                        CreationObjectInfo info = Registers[splitObjects[0]];
                         Instructions.Add(new Instruction(Opcodes.PUSH_OBJ, info.RegisterID));
-                        callee = $"get {info.ObjectType}::{result.Substring(splitObject[0].Length + 1)}";
+                        callee = $"get {info.ObjectType}::{result.Substring(splitObjects[0].Length + 1)}";
                     }
                     else
                     {
@@ -580,7 +967,7 @@ namespace DOML
 
                     if (InstructionRegister.Actions.ContainsKey(callee) == false)
                     {
-                        Log.Error("Can't find action");
+                        LogError("Can't find action");
                         return false;
                     }
 
@@ -597,26 +984,21 @@ namespace DOML
                 }
                 else
                 {
-                    Log.Error("Doesn't exist in any registers and no call exists for it");
+                    LogError("Doesn't exist in any registers and no call exists for " + result);
                     return false;
                 }
             }
         }
 
-        private static bool ParseStringOrCharacter(TextReader reader, bool character, ref int values)
+        private static bool ParseString(TextReader reader, ref int values)
         {
             StringBuilder builder = new StringBuilder();
             bool escaped = false;
-            char endOn = character ? '\'' : '"';
             // We can do it like this because we want to throw the starting string character out anyway
-            while (Advance(reader, 1))
+            while (AdvanceOnce(reader))
             {
-                if (currentCharacter == endOn && escaped == false) break;
-
-                else if (currentCharacter == '/' && escaped == false && reader.Peek() == endOn)
-                {
-                    escaped = true;
-                }
+                if (currentCharacter == '"' && escaped == false) break;
+                else if (currentCharacter == '/' && escaped == false && reader.Peek() == '"') escaped = true;
                 else
                 {
                     escaped = false;
@@ -624,13 +1006,15 @@ namespace DOML
                 }
             }
 
-            if (currentCharacter != endOn)
+            if (currentCharacter != '"')
             {
-                Log.Error($"No ending {endOn}");
+                LogError($"No ending {'"'}");
                 return false;
             }
 
-            Instructions.Add(new Instruction(character ? Opcodes.PUSH_CHAR : Opcodes.PUSH_STR, builder.ToString()));
+            AdvanceOnce(reader);
+
+            Instructions.Add(new Instruction(Opcodes.PUSH_STR, builder.ToString()));
             values++;
             return true;
         }
@@ -644,7 +1028,7 @@ namespace DOML
             if (currentCharacter == '-' || currentCharacter == '+')
             {
                 builder.Append(currentCharacter);
-                Advance(reader, 1);
+                AdvanceOnce(reader);
             }
 
             if (currentCharacter == '$')
@@ -655,13 +1039,17 @@ namespace DOML
                 if (next == '+' || next == '-')
                 {
                     builder.Append(next);
-                    Advance(reader, 1);
+                    AdvanceOnce(reader);
+                }
+
+                if (next == '.')
+                {
+                    builder.Append("0.");
                 }
             }
             else if (currentCharacter == '.')
             {
-                builder.Append('0');
-                builder.Append(currentCharacter);
+                builder.Append("0.");
                 baseN = 0;
             }
             else if (currentCharacter == '0')
@@ -679,22 +1067,30 @@ namespace DOML
                         baseN = 0;
                 }
 
-                Advance(reader, 1); // Skipping the '0' and the character after it
+                AdvanceOnce(reader); // Skipping the '0' and the character after it
             }
             else
             {
                 builder.Append(currentCharacter);
             }
 
-            while (Advance(reader, 1))
+            while (AdvanceOnce(reader) && char.IsWhiteSpace(currentCharacter) == false)
             {
-                if (char.IsWhiteSpace(currentCharacter)) break;
-
-                if (currentCharacter == '_')
+                if (currentCharacter == '.')
                 {
-                    if (underscore == false)
+                    if (baseN == 0)
                     {
-                        Log.Error("Can't have two '_' next to each other in a number");
+                        // Two '.' exist therefore error
+                        LogError("Can't have two '.' in a number");
+                        return false;
+                    }
+                    baseN = 0;
+                }
+                else if (currentCharacter == '_')
+                {
+                    if (underscore)
+                    {
+                        LogError("Can't have two '_' next to each other in a number");
                         return false;
                     }
                     else
@@ -703,35 +1099,20 @@ namespace DOML
                         continue;
                     }
                 }
-                else if (currentCharacter == '.')
-                {
-                    if (baseN == 0)
-                    {
-                        // Two '.' exist therefore error
-                        Log.Error("Can't have two '.' in a number");
-                        return false;
-                    }
-                    baseN = 0;
-                }
                 else if (baseN == 0 && currentCharacter == 'e')
                 {
                     builder.Append(currentCharacter);
-                    Advance(reader, 1);
+                    AdvanceOnce(reader);
                     if (currentCharacter != '+' && currentCharacter != '-' && char.IsDigit(currentCharacter) == false)
                     {
-                        Log.Error("Invalid Exponent");
+                        LogError("Invalid Exponent");
                         return false;
                     }
                 }
                 else if (baseN == 2 && (currentCharacter != '0' || currentCharacter != '1')) break;
-                else if (char.IsDigit(currentCharacter) == false && baseN != 16) break;
                 else if (baseN == 7 && (currentCharacter > '7')) break;
-                else if (baseN == 16 && (('a' <= currentCharacter) && (currentCharacter <= 'f') || ('A' <= currentCharacter) && (currentCharacter <= 'F')) == false) break;
-                else if (char.IsDigit(currentCharacter) == false)
-                {
-                    Log.Error("Invalid number");
-                    return false;
-                }
+                else if (baseN == 16 && (('a' <= currentCharacter) && (currentCharacter <= 'f') || ('A' <= currentCharacter) && (currentCharacter <= 'F') || char.IsDigit(currentCharacter)) == false) break;
+                else if ((baseN == 10 || baseN == -1 || baseN == 0) && char.IsDigit(currentCharacter) == false) break;
 
                 builder.Append(currentCharacter);
                 underscore = false;
@@ -751,23 +1132,25 @@ namespace DOML
             return true;
         }
 
-        private static void ParseComments(TextReader reader)
+        private static bool ParseComments(TextReader reader)
         {
+            if (char.IsWhiteSpace(currentCharacter) == false && currentCharacter != '/')
+                return true;
+
             int blockCommentNesting = 0;
             StringBuilder comment = new StringBuilder();
-
-            while (Advance(reader, 1))
+            do
             {
                 if (currentCharacter == '*' && (char)reader.Peek() == '/')
                 {
                     if (blockCommentNesting == 0)
                     {
-                        Log.Error("Didn't start comment block");
-                        return;
+                        LogError("Didn't start comment block");
+                        return false;
                     }
 
                     blockCommentNesting--;
-                    Advance(reader, 1); // consume '*' and begin on '/'
+                    AdvanceOnce(reader); // consume '*' and begin on '/'
                     Instructions.Add(new Instruction(Opcodes.COMMENT, comment.ToString()));
                 }
                 else if (currentCharacter == '/')
@@ -782,9 +1165,9 @@ namespace DOML
                         }
 
                         blockCommentNesting++;
-                        Advance(reader, 1); // consume '*'
+                        AdvanceOnce(reader); // consume '*'
                     }
-                    else if (currentCharacter == '/' && reader.Peek() == '/' && blockCommentNesting == 0)
+                    else if (next == '/' && blockCommentNesting == 0)
                     {
                         Advance(reader, 2);
                         Instructions.Add(new Instruction(Opcodes.COMMENT, AdvanceLine(reader)));
@@ -802,22 +1185,24 @@ namespace DOML
                 {
                     // We don't need to check the last condition since we know that blockCommentNesting <= 0
                     // If it is < 0 then we check that on that spot rather than towards end.
-                    return;
+                    return true;
                 }
-            }
+            } while (AdvanceOnce(reader));
 
             if (blockCommentNesting != 0)
             {
-                Log.Error($"Didn't finish block comment starting at Line: /{StartingLine}, Column: /{StartingColumn}", true);
-                return;
+                LogError($"Didn't finish block comment");
+                return false;
             }
+
+            return true;
         }
 
         private static void IgnoreWhitespace(TextReader reader)
         {
             while (char.IsWhiteSpace(currentCharacter))
             {
-                Advance(reader, 1);
+                AdvanceOnce(reader);
             }
         }
 

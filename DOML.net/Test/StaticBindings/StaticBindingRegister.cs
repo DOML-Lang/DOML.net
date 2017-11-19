@@ -4,16 +4,17 @@
  */
 using DOML.Logger;
 using DOML.IR;
+using DOML;
 
 public static partial class DOMLBindings
 {
     public static void LinkBindings()
     {
-        StaticBindings.SystemBindings.____ColourStaticBindings____.RegisterCalls();
+        StaticBindings.BindingsForSystem.____ColorStaticBindings____.RegisterCalls();
     }
 
     public static void UnLinkBindings()
     {
-        StaticBindings.SystemBindings.____ColourStaticBindings____.UnRegisterCalls();
+        StaticBindings.BindingsForSystem.____ColorStaticBindings____.UnRegisterCalls();
     }
 }
