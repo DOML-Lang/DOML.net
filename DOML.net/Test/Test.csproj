@@ -5,10 +5,15 @@
     <TargetFramework>netcoreapp1.1</TargetFramework>
     <StartupObject>Test.UnitTests.Program</StartupObject>
     <Configurations>Debug;Release;Test</Configurations>
+    <ApplicationIcon />
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Test|AnyCPU'">
     <DefineConstants>DEBUG;TRACE;TEST;NETCOREAPP1_0</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DocumentationFile>bin\Debug\netcoreapp1.1\Test.xml</DocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

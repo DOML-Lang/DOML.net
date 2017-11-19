@@ -100,7 +100,7 @@ namespace DOML.IR
 
             for (int i = 0; i < interpreter.Instructions.Count; i++)
             {
-                WriteInstructionText(interpreter.Instructions[i], withLineComments);
+                WriteInstructionText(interpreter.Instructions[i], withLineComments, i != interpreter.Instructions.Count - 1);
             }
 
             Log.Info("Emitted IR");
@@ -120,16 +120,17 @@ namespace DOML.IR
         /// </summary>
         /// <param name="instruction"> The instruction. </param>
         /// <param name="withComment"> Write a description comment.</param>
+        /// <param name="includeComma"> Include a comma, or not.  Only done if <paramref name="withComment"/> is false. </param>
         /// <remarks> Spaces out instructions to provide nice indentation and spacing. </remarks>
-        public void WriteInstructionText(Instruction instruction, bool withComment)
+        public void WriteInstructionText(Instruction instruction, bool withComment, bool includeComma)
         {
             if (withComment)
             {
-                writer.WriteLine("{0:D2}, {1,-50} ; {2,10}", instruction.OpCode, GetParameterText(instruction).Trim(), GetCommentEmit(instruction));
+                writer.WriteLine("{0:D2} {1,-50} ; {2,10}", instruction.OpCode, GetParameterText(instruction).Trim(), GetCommentEmit(instruction));
             }
             else
             {
-                writer.Write("{0}, {1} ", instruction.OpCode, GetParameterText(instruction));
+                writer.Write("{0} {1}{2}", instruction.OpCode, GetParameterText(instruction), includeComma ? ", " : " ");
             }
         }
 

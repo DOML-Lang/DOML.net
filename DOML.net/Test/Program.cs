@@ -145,7 +145,7 @@ namespace Test.UnitTests
                 return Parser.GetInterpreterFromIR(reader);
         }
 
-        [Benchmark]
+        //  [Benchmark]
         public Interpreter ReadIR()
         {
             using (StringReader reader = new StringReader(IRWithoutComments))
@@ -198,6 +198,9 @@ namespace Test.UnitTests
             string withComments;
             string withoutComments;
 
+            IRWriter.EmitToLocation(interpreter, Directory.GetCurrentDirectory() + "/CompactOutput.IR", false, false);
+            IRWriter.EmitToLocation(interpreter, Directory.GetCurrentDirectory() + "/Output.IR", false, true);
+
             StringBuilder builder = new StringBuilder();
 
             IRWriter.EmitToString(interpreter, builder, true);
@@ -206,40 +209,21 @@ namespace Test.UnitTests
             IRWriter.EmitToString(interpreter, builder, false);
             withoutComments = builder.ToString();
 
-            System.Diagnostics.Stopwatch stopwatch = new System.Diagnostics.Stopwatch();
-            long count1 = 0;
-            long count2 = 0;
             Interpreter c;
 
-            for (int i = 0; i < 10000; i++)
+            using (StringReader reader = new StringReader(withComments))
             {
-                stopwatch.Restart();
-                using (StringReader reader = new StringReader(withComments))
-                {
-                    c = Parser.GetInterpreterFromIR(reader);
-                    stopwatch.Stop();
-                    c.Execute(true);
-                }
-                count1 += stopwatch.ElapsedTicks;
-
-                stopwatch.Restart();
-                using (StringReader reader = new StringReader(withoutComments))
-                {
-                    c = Parser.GetInterpreterFromIR(reader);
-                    stopwatch.Stop();
-                    c.Execute(true);
-                }
-                count2 += stopwatch.ElapsedTicks;
+                c = Parser.GetInterpreterFromIR(reader);
+                c.HandleSafeInstruction(new Instruction());
             }
 
-            Console.WriteLine(count2 / (10000 * (System.Diagnostics.Stopwatch.Frequency / 1 * 10e-6)));
-            Console.WriteLine(count1 / (100000));
-            Console.WriteLine(count2 / (100000));
+            using (StringReader reader = new StringReader(withoutComments))
+            {
+                c = Parser.GetInterpreterFromIR(reader);
+                c.HandleSafeInstruction(new Instruction());
+            }
 
             Console.Read();
-
-            IRWriter.EmitToLocation(interpreter, Directory.GetCurrentDirectory() + "/CompactOutput.IR", false, false);
-            IRWriter.EmitToLocation(interpreter, Directory.GetCurrentDirectory() + "/Output.IR", false, true);
 
             return;
 
@@ -260,7 +244,7 @@ namespace Test.UnitTests
             @ Copy = System.Color...
             ;             .RGB = Test.R, Test.G, Test.B
             ;             .Name = ""Copy""
-            ", 5, Config.READ_EMIT | Config.READ_EMIT_COMMENT);
+            ", 5, Config.READ_EMIT);
 
             Console.Write(Log.HandleLogs);
 

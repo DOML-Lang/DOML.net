@@ -453,27 +453,25 @@ namespace DOML
         public static Interpreter GetInterpreterFromIR(TextReader reader)
         {
             if (Instructions.Count > 0) Instructions.Clear();
-            currentCharacter = char.MinValue;
             StartingColumn = StartingLine = CurrentLine = CurrentColumn = 0;
+            string currentLine = reader.ReadLine();
+            int index = 0;
 
-            while (currentCharacter == ';' || AdvanceOnce(reader))
+            while (currentLine != null)
             {
-                while (char.IsWhiteSpace(currentCharacter))
-                {
-                    AdvanceOnce(reader);
-                }
+                while (char.IsWhiteSpace(currentLine[index]))
+                    ++index;
 
-                if (currentCharacter == ';')
+                if (currentLine[index] == ';')
                 {
-                    AdvanceLine(reader);
-                    currentCharacter = char.MinValue;
+                    currentLine = reader.ReadLine();
                     continue;
                 }
 
                 // OPCODE
-                char firstDigit = currentCharacter;
-                AdvanceOnce(reader);
+                char firstDigit = currentLine[index++];
                 int value;
+                currentCharacter = currentLine[index];
 
                 if (char.IsDigit(firstDigit) == false)
                 {
@@ -485,7 +483,7 @@ namespace DOML
                 {
                     // Two Digits
                     value = (firstDigit == '1' ? 10 : 0) + currentCharacter - '0'; // Since the maximum value is 18 so far, we can just do this, and save a multiplication
-                    AdvanceOnce(reader);
+                    ++index;
                 }
                 else
                 {
@@ -493,19 +491,7 @@ namespace DOML
                     value = firstDigit - '0';
                 }
 
-                while (currentCharacter != ',')
-                {
-                    if (AdvanceOnce(reader) == false)
-                    {
-                        LogError("Missing ','");
-                        return null;
-                    }
-                }
-
-                AdvanceOnce(reader);
-                IgnoreWhitespace(reader);
-
-                if (value >= (byte)Opcodes.COUNT_OF_INSTRUCTIONS)
+                if (value >= (int)Opcodes.COUNT_OF_INSTRUCTIONS)
                 {
                     LogError("Invalid Opcode");
                     return null;
@@ -513,37 +499,60 @@ namespace DOML
 
                 Opcodes opcode = (Opcodes)value;
 
-                if (reader.Peek() < 0)
+                while (char.IsWhiteSpace(currentLine[index]))
                 {
-                    LogError("No Parameter");
-                    return null;
+                    if (++index >= currentLine.Length)
+                    {
+                        LogError("Missing parameter");
+                        return null;
+                    }
                 }
 
-                StringBuilder builder = new StringBuilder();
+                int initialIndex = index;
                 bool quoted = false;
 
                 do
                 {
-                    if (currentCharacter == '"' && quoted == false) quoted = true;
-                    else if (currentCharacter == '"' && quoted) break;
-                    else if (char.IsWhiteSpace(currentCharacter) && quoted == false) break;
-                    else builder.Append(currentCharacter);
+                    currentCharacter = currentLine[index];
+                    if (((char.IsWhiteSpace(currentCharacter) || currentCharacter == ',') && quoted == false) || index >= currentLine.Length) break;
+                    if (currentCharacter == '"') quoted = !quoted;
+                    index++;
                 }
-                while (AdvanceOnce(reader));
+                while (true);
 
-                if (char.IsWhiteSpace(currentCharacter) == false && quoted == false && currentCharacter == '"')
-                {
-                    LogError("Invalid Line");
-                    return null;
-                }
-
-                if (!ParseValueForOpCode(opcode, builder.ToString(), out object parameter))
+                if (index >= currentLine.Length || !ParseValueForOpCode(opcode, currentLine.Substring(initialIndex, index - initialIndex), out object parameter))
                 {
                     LogError("Invalid Parameter");
                     return null;
                 }
 
+                while (currentLine[index] != '\n' && char.IsWhiteSpace(currentLine[index]))
+                {
+                    if (++index >= currentLine.Length)
+                    {
+                        break;
+                    }
+                }
+
                 Instructions.Add(new Instruction(opcode, parameter));
+
+                if (index >= currentLine.Length)
+                {
+                    break;
+                }
+                else if (currentLine[index] == ',')
+                {
+                    ++index;
+                }
+                else if (currentLine[index] == ';' || currentLine[index] == '\n')
+                {
+                    currentLine = reader.ReadLine();
+                }
+                else
+                {
+                    LogError("Invalid Character: " + currentLine[index]);
+                    return null;
+                }
             }
 
             return new Interpreter(Instructions);
