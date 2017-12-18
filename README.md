@@ -4,38 +4,38 @@ This is the .net implementation for DOML (Data Oriented Markup Language), which 
 Note: Check out the proper [spec](https://github.com/DOML-DataOrientedMarkupLanguage/DOML-Spec) if you want to see what this language can do and how to use it, for the sake of simplicity I won't repeat myself here.  Furthermore this is 100% compliant with the current spec.
 
 ## Benchmarks
-``` ini
 
+``` ini
 BenchmarkDotNet=v0.10.9, OS=Windows 10 Redstone 2 (10.0.15063)
 Processor=Intel Core i5-4590 CPU 3.30GHz (Haswell), ProcessorCount=4
-Frequency=3222661 Hz, Resolution=310.3026 ns, Timer=TSC
+Frequency=3222670 Hz, Resolution=310.3017 ns, Timer=TSC
 .NET Core SDK=1.1.0
   [Host]     : .NET Core 1.1.2 (Framework 4.6.25211.01), 64bit RyuJIT
   DefaultJob : .NET Core 1.1.2 (Framework 4.6.25211.01), 64bit RyuJIT
-
-
 ```
-**Note: The times are in nanoseconds, divide by 1000 to get microseconds.  I.e. the parsing time is ~17ms or ~17,000ns
- |      Method | WithCondition |        Mean |      Error |      StdDev |
- |------------ |-------------- |------------:|-----------:|------------:|
- |   **ParseTest** |         **False** | **16,945.8 ns** | **125.820 ns** | **117.6918 ns** |
- |    EmitTest |         False | 15,358.0 ns | 100.696 ns |  89.2647 ns |
- | ExecuteTest |         False |  2,294.9 ns |   9.437 ns |   8.8275 ns |
- |      ReadIR |         False |    250.0 ns |   1.402 ns |   1.3118 ns |
- |   **ParseTest** |          **True** | **17,029.7 ns** |  **78.868 ns** |  **73.7734 ns** |
- |    EmitTest |          True | 44,286.0 ns | 175.621 ns | 146.6518 ns |
- | ExecuteTest |          True |  3,599.1 ns |   9.569 ns |   8.9511 ns |
- |      ReadIR |          True |    261.1 ns |   1.019 ns |   0.9035 ns |
+ |      Method | WithCondition |      Mean |     Error |    StdDev |
+ |------------ |-------------- |----------:|----------:|----------:|
+ |   **ParseTest** |         **False** | **17.381 us** | **0.2962 us** | **0.2770 us** |
+ |    EmitTest |         False | 16.078 us | 0.2121 us | 0.1984 us |
+ | ExecuteTest |         False |  2.326 us | 0.0160 us | 0.0142 us |
+ |      ReadIR |         False |  7.221 us | 0.0955 us | 0.0893 us |
+ |   **ParseTest** |          **True** | **17.199 us** | **0.1040 us** | **0.0868 us** |
+ |    EmitTest |          True | 44.816 us | 0.4070 us | 0.3807 us |
+ | ExecuteTest |          True |  3.597 us | 0.0292 us | 0.0273 us |
+ |      ReadIR |          True |  5.646 us | 0.0624 us | 0.0584 us |
 
 > WithConditions represents reading with/without commments, emitting with/without comments, and executing in either safe/unsafe mode
+<img src="https://github.com/DOML-DataOrientedMarkupLanguage/DOML.net/blob/master/DOML.net/Test/BenchmarkDotNet.Artifacts/results/AllTests-barplot.png" width="500" height="500">
 
 #### Takeaways
-- Parsing is around 17ms (or 17,000 ms)
-    - With/Without comments makes a miniscle difference
-- Emission is around 15ms without comments, and 44ms with comments
+- Parsing is around 17ms (or ~17,000ns)
+    - With/Without comments makes a miniscle difference, this is mainly due to line comments being ignored with a readline whereas whitespace is done bit by bit, so the calls cancel out the cost of creating a new instruction and placing the string in.
+- Emission is around 16ms without comments, and 45ms with comments
 	- With comments is significantly slower due to the string manipulation that occurs, this could be optimised quite signficantly
 	- Emission in general could also be optimised, but I'm more focusing on the reading currently
 - Execution is 2.3ms in unsafe mode, and 3.6ms in safe mode.
 	- Thus Execution is is around 1.5x slower when using safe mode.
 	- Doubt it can be optimised too much more, due to the nature of it being relatively simple, though perhaps a nicer branching system could benefit the code.
-- Reading IR without comments is around 0.25ms and with comments is 0.26ms, thus there is basically no real difference
+- Reading IR without comments is around 7.2ms and with comments is 5.7ms
+	- The difference can be attributed to the fact that reading without reads the entire line in, and that is less optimised then reading multiple lines, due to the fact it indexes and substrings from that; it also could be attributed to the memory cost associated, and the resulting cache misses.
+	- In reality there is little difference, though it does raise questions of whether or not we could improve the compact code, and I think there is a lot of room for improvement there.
