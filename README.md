@@ -1,4 +1,8 @@
 # Data Oriented Markup Language - DOML (.Net)
+> Uses .Net Standard 1.3
+>> Thus supports Core 1.0+, .Net Framework/Mono 4.6+, Xamarin IOS/Mac/Android 10.0+/3.0+/7.0+, UWP 10.0+, Windows 8.1+, Windows Phone 8.1+, Windows Silverlight 8.0+
+>>> Also supports Unity (if using 2017 and using the experimental 4.6 compiler which is soon to become standard) just drag into plugins and make sure player is using 4.6 rather than the older variant and everything will work.
+
 This is the .net implementation for DOML (Data Oriented Markup Language), which is a 'new' markup language that takes a different approach then most.  It enacts to simulate a call-stack rather than simulate data structures, this allows it to represent a constructor like look rather than the usual bracketed `{...}` mess.
 
 Note: Check out the proper [spec](https://github.com/DOML-DataOrientedMarkupLanguage/DOML-Spec) if you want to see what this language can do and how to use it, for the sake of simplicity I won't repeat myself here.  Furthermore this is 100% compliant with the current spec.
