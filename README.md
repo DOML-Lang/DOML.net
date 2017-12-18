@@ -28,14 +28,14 @@ Frequency=3222670 Hz, Resolution=310.3017 ns, Timer=TSC
 <img src="https://github.com/DOML-DataOrientedMarkupLanguage/DOML.net/blob/master/DOML.net/Test/BenchmarkDotNet.Artifacts/results/AllTests-barplot.png" width="500" height="500">
 
 #### Takeaways
-- Parsing is around 17ms (or ~17,000ns)
+- Parsing is around 17us (or ~17,000ns)
     - With/Without comments makes a miniscle difference, this is mainly due to line comments being ignored with a readline whereas whitespace is done bit by bit, so the calls cancel out the cost of creating a new instruction and placing the string in.
-- Emission is around 16ms without comments, and 45ms with comments
+- Emission is around 16us without comments, and 45us with comments
 	- With comments is significantly slower due to the string manipulation that occurs, this could be optimised quite signficantly
 	- Emission in general could also be optimised, but I'm more focusing on the reading currently
-- Execution is 2.3ms in unsafe mode, and 3.6ms in safe mode.
+- Execution is 2.3us in unsafe mode, and 3.6us in safe mode.
 	- Thus Execution is is around 1.5x slower when using safe mode.
 	- Doubt it can be optimised too much more, due to the nature of it being relatively simple, though perhaps a nicer branching system could benefit the code.
-- Reading IR without comments is around 7.2ms and with comments is 5.7ms
+- Reading IR without comments is around 7.2us and with comments is 5.7us
 	- The difference can be attributed to the fact that reading without reads the entire line in, and that is less optimised then reading multiple lines, due to the fact it indexes and substrings from that; it also could be attributed to the memory cost associated, and the resulting cache misses.
 	- In reality there is little difference, though it does raise questions of whether or not we could improve the compact code, and I think there is a lot of room for improvement there.
