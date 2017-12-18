@@ -21,8 +21,19 @@ namespace DOML.Logger
         /// </summary>
         public enum Type
         {
+            /// <summary>
+            /// Info, just generic log.
+            /// </summary>
             INFO,
+
+            /// <summary>
+            /// Something non-serious went wrong.
+            /// </summary>
             WARNING,
+
+            /// <summary>
+            /// Fatal exception.
+            /// </summary>
             ERROR,
         }
 
@@ -31,12 +42,33 @@ namespace DOML.Logger
         /// </summary>
         public struct Information
         {
+            /// <summary>
+            /// The starting line, used for error messages stretching over multiple lines.
+            /// </summary>
             public int StartingLine;
+
+            /// <summary>
+            /// The current line, used for error messages.
+            /// </summary>
             public int CurrentLine;
 
+            /// <summary>
+            /// The starting column, used for error messages stretching over multiple columns.
+            /// </summary>
             public int StartingColumn;
+
+            /// <summary>
+            /// The current column, used for error messages.
+            /// </summary>
             public int CurrentColumn;
 
+            /// <summary>
+            /// Creates a new information struct.
+            /// </summary>
+            /// <param name="startingLine"> The starting line. </param>
+            /// <param name="currentLine"> The current line. </param>
+            /// <param name="startingColumn"> The starting column. </param>
+            /// <param name="currentColumn"> The current column. </param>
             public Information(int startingLine, int currentLine, int startingColumn, int currentColumn)
             {
                 StartingLine = startingLine;
