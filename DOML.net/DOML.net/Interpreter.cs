@@ -138,6 +138,18 @@ namespace DOML.IR
         PUSH,
 
         /// <summary>
+        /// Pushes a vector of size given onto the stack.
+        /// </summary>
+        /// <remarks> Parameter; A signed 32 integer. </remarks>
+        PUSHVEC,
+
+        /// <summary>
+        /// Pushes a vector of size given onto the stack.
+        /// </summary>
+        /// <remarks> Parameter; A signed 32 integer. </remarks>
+        PUSHMAP,
+
+        /// <summary>
         /// The amount of instructions.
         /// </summary>
         /// <remarks> Keep ALWAYS as last value. </remarks>
@@ -360,6 +372,22 @@ namespace DOML.IR
                     else
                     {
                         Log.Error("Pop failed");
+                    }
+                    return;
+                }
+            case Opcodes.PUSHVEC:
+                {
+                    if (instruction.Parameter is int count)
+                    {
+                        if (!Runtime.MakeVector(count))
+                        {
+                            Log.Error("PushVec failed");
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        Log.Error("PushVec failed");
                     }
                     return;
                 }

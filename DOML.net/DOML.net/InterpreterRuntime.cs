@@ -8,6 +8,8 @@
 #endregion
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using DOML.Logger;
 
@@ -80,6 +82,11 @@ namespace DOML.IR
         /// Equal to <c>objectRegisters.Length</c>.
         /// </remarks>
         public int RegisterSize => objectRegisters.Length;
+
+        /// <summary>
+        /// How much vector space left.
+        /// </summary>
+        private int collectionCount;
 
         /// <summary>
         /// Clears the stack array.
@@ -211,11 +218,53 @@ namespace DOML.IR
         /// <summary>
         /// Pushes a value onto the stack.
         /// </summary>
+        /// <typeparam name="T"> The type of the object, used to make arrays more efficient. </typeparam>
         /// <param name="value"> The value to push onto the stack. </param>
         /// <param name="resizeIfNoSpace"> If there is no space then resize the stack and copy values over. </param>
         /// <returns> True if value could be pushed onto stack. </returns>
-        public bool Push(object value, bool resizeIfNoSpace)
+        public bool Push<T>(T value, bool resizeIfNoSpace)
         {
+            if (collectionCount > 0)
+            {
+                if (TopIsOfType<T[]>(out bool result))
+                {
+                    if (result == false)
+                    {
+                        PushVector<T>(collectionCount);
+                    }
+                }
+                else
+                {
+                    // This means that TopIsOfType FAILS
+                    // not that it isn't IList, it fails if there is no object to check.
+                    return false;
+                }
+
+                if (typeof(T) == typeof(object))
+                {
+                    if (Peek(out IList vec))
+                    {
+                        Type generic = vec.GetType().GetGenericTypeDefinition().GenericTypeArguments[0];
+                        if (generic == typeof(object) || value.GetType() == generic)
+                        {
+                            vec[vec.Count - collectionCount] = value;
+                            collectionCount--;
+                        }
+                    }
+                }
+                else
+                {
+                    // No need for type check since peek will automatically do that for us
+                    if (Peek(out T[] vec))
+                    {
+                        vec[vec.Length - collectionCount] = value;
+                        collectionCount--;
+                        return true;
+                    }
+                }
+                return false;
+            }
+
             /* No need to check for > since it only ever increases by one and you can't directly change the index
              * Without pushing/popping therefore if somehow it does occur then that's a runtime error that we want.
              */
@@ -416,6 +465,48 @@ namespace DOML.IR
             }
         }
 
+        /// <summary>
+        /// Gets the system ready to make a vector.
+        /// </summary>
+        /// <param name="count"> The size of the vector. </param>
+        /// <returns> If the vector can be created (count > 1). </returns>
+        public bool MakeVector(int count)
+        {
+            if (count > 1)
+            {
+                collectionCount = count;
+                // This will stop the system from doubling up the lists
+                Unsafe_Push<object>(false);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Pushes a vector onto the stack.
+        /// </summary>
+        /// <typeparam name="T"> The type of the vector. </typeparam>
+        /// <param name="count"> The size of the vector. </param>
+        /// <returns> True if success. </returns>
+        private bool PushVector<T>(int count)
+        {
+            if (count > 1)
+            {
+                T[] array = new T[count];
+
+                // Note: Not sure we want to always resize?
+                if (!Push(array, true))
+                {
+                    return false;
+                }
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
         #endregion
 
         #region Unsafe_Stack_Implementation
@@ -470,10 +561,19 @@ namespace DOML.IR
         /// Unsafe implementation, doesn't perform any checks.
         /// Will push a value onto the stack.
         /// </summary>
+        /// <typeparam name="T"> The type, used to make arrays more efficient. </typeparam>
         /// <param name="value"> The value to push. </param>
         /// <remarks> Will throw a bunch of errors if you do something badly wrong. </remarks>
-        public void Unsafe_Push(object value)
+        public void Unsafe_Push<T>(T value)
         {
+            if (collectionCount > 0)
+            {
+                T[] array = Unsafe_Peek<T[]>();
+                array[array.Length - collectionCount] = value;
+                collectionCount--;
+                return;
+            }
+
             stack[++stackPtr] = value;
         }
 
