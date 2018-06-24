@@ -7,6 +7,11 @@ This is the .net implementation for DOML (Data Oriented Markup Language), which 
 
 Note: Check out the proper [spec](https://github.com/DOML-DataOrientedMarkupLanguage/DOML-Spec) if you want to see what this language can do and how to use it, for the sake of simplicity I won't repeat myself here.  Furthermore this is 100% compliant with the current spec.
 
+## Deviations From The Spec
+
+- Counts aren't stored in parameter format once past AST, this is due to the fact that arrays have lengths associated with them.
+	- Doesn't effect the outputted IR which will be valid.
+
 ## Benchmarks
 
 ``` ini

@@ -9,18 +9,15 @@
 
 using System;
 
-namespace DOML.Logger
-{
+namespace DOML.Logger {
     /// <summary>
     /// Use this class to log errors to the user.
     /// </summary>
-    public static class Log
-    {
+    public static class Log {
         /// <summary>
         /// The type of log.
         /// </summary>
-        public enum Type
-        {
+        public enum Type {
             /// <summary>
             /// Info, just generic log.
             /// </summary>
@@ -40,8 +37,7 @@ namespace DOML.Logger
         /// <summary>
         /// Information about the log.
         /// </summary>
-        public struct Information
-        {
+        public struct Information {
             /// <summary>
             /// The starting line, used for error messages stretching over multiple lines.
             /// </summary>
@@ -69,8 +65,7 @@ namespace DOML.Logger
             /// <param name="currentLine"> The current line. </param>
             /// <param name="startingColumn"> The starting column. </param>
             /// <param name="currentColumn"> The current column. </param>
-            public Information(int startingLine, int currentLine, int startingColumn, int currentColumn)
-            {
+            public Information(int startingLine, int currentLine, int startingColumn, int currentColumn) {
                 StartingLine = startingLine;
                 CurrentLine = currentLine;
 
@@ -105,8 +100,7 @@ namespace DOML.Logger
         /// </summary>
         /// <param name="error"> The error to log. </param>
         /// <param name="info"> Line information. </param>
-        public static void Error(string error, Information? info = null)
-        {
+        public static void Error(string error, Information? info = null) {
             if (HandleLogs) LogHandler(error, Type.ERROR, info);
         }
 
@@ -115,8 +109,7 @@ namespace DOML.Logger
         /// </summary>
         /// <param name="warning"> The warning to log. </param>
         /// <param name="info"> Line information. </param>
-        public static void Warning(string warning, Information? info = null)
-        {
+        public static void Warning(string warning, Information? info = null) {
             if (HandleLogs) LogHandler(warning, Type.WARNING, info);
         }
 
@@ -125,8 +118,7 @@ namespace DOML.Logger
         /// </summary>
         /// <param name="infoLog"> The info to log. </param>
         /// <param name="info"> Line information. </param>
-        public static void Info(string infoLog, Information? info = null)
-        {
+        public static void Info(string infoLog, Information? info = null) {
             if (HandleLogs) LogHandler(infoLog, Type.INFO, info);
         }
     }

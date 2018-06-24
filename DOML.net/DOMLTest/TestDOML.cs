@@ -15,14 +15,12 @@ using DOML;
 using DOML.IR;
 using DOML.Logger;
 
-namespace DOML.Test
-{
+namespace DOML.Test {
     /// <summary>
     /// The config options for the test.
     /// </summary>
     [Flags]
-    public enum Config
-    {
+    public enum Config {
         NONE = 0,
         EMIT = 1 << 0,
         SAFE_EXECUTE = 1 << 1,
@@ -38,49 +36,40 @@ namespace DOML.Test
     /// It will enact to minimise the effect of JIT and other environmental issues.
     /// All tests are conducted using stringbuilders instead of files (so it works in UnitTests).
     /// </summary>
-    public static class TestDOML
-    {
+    public static class TestDOML {
         /// <summary>
         /// Runs a test where it reads from a filepath and executes the test on that.
         /// </summary>
         /// <param name="filepath"> The filepath to read from. </param>
         /// <param name="iterations"> How many iterations to run. </param>
         /// <param name="options"> What tests to run. </param>
-        public static void RunFileTest(string filepath, int iterations, Config options)
-        {
+        public static void RunFileTest(string filepath, int iterations, Config options) {
             Log.HandleLogs = true;
             // throw out first 1000
-            for (int i = 0; i < 1000; i++)
-            {
+            for (int i = 0; i < 1000; i++) {
                 RunParseTest(new StreamReader(new FileStream(filepath, FileMode.Open)), iterations, true);
 
-                if (options.HasFlag(Config.EMIT))
-                {
+                if (options.HasFlag(Config.EMIT)) {
                     RunEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
                 }
 
-                if (options.HasFlag(Config.EMIT_COMMENT))
-                {
+                if (options.HasFlag(Config.EMIT_COMMENT)) {
                     RunEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
                 }
 
-                if (options.HasFlag(Config.READ_EMIT))
-                {
+                if (options.HasFlag(Config.READ_EMIT)) {
                     RunReadEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
                 }
 
-                if (options.HasFlag(Config.READ_EMIT_COMMENT))
-                {
+                if (options.HasFlag(Config.READ_EMIT_COMMENT)) {
                     RunReadEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
                 }
 
-                if (options.HasFlag(Config.EXECUTE))
-                {
+                if (options.HasFlag(Config.EXECUTE)) {
                     RunExecuteTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
                 }
 
-                if (options.HasFlag(Config.SAFE_EXECUTE))
-                {
+                if (options.HasFlag(Config.SAFE_EXECUTE)) {
                     RunExecuteTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
                 }
             }
@@ -89,33 +78,27 @@ namespace DOML.Test
 
             RunParseTest(new StreamReader(new FileStream(filepath, FileMode.Open)), iterations, true);
 
-            if (options.HasFlag(Config.EMIT))
-            {
+            if (options.HasFlag(Config.EMIT)) {
                 RunEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
             }
 
-            if (options.HasFlag(Config.EMIT_COMMENT))
-            {
+            if (options.HasFlag(Config.EMIT_COMMENT)) {
                 RunEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
             }
 
-            if (options.HasFlag(Config.READ_EMIT))
-            {
+            if (options.HasFlag(Config.READ_EMIT)) {
                 RunReadEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
             }
 
-            if (options.HasFlag(Config.READ_EMIT_COMMENT))
-            {
+            if (options.HasFlag(Config.READ_EMIT_COMMENT)) {
                 RunReadEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
             }
 
-            if (options.HasFlag(Config.EXECUTE))
-            {
+            if (options.HasFlag(Config.EXECUTE)) {
                 RunExecuteTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
             }
 
-            if (options.HasFlag(Config.SAFE_EXECUTE))
-            {
+            if (options.HasFlag(Config.SAFE_EXECUTE)) {
                 RunExecuteTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
             }
         }
@@ -126,42 +109,34 @@ namespace DOML.Test
         /// <param name="text"> The text to read from. </param>
         /// <param name="iterations"> How many iterations to run. </param>
         /// <param name="options"> What tests to run. </param>
-        public static void RunStringTest(string text, int iterations, Config options)
-        {
+        public static void RunStringTest(string text, int iterations, Config options) {
             Log.HandleLogs = true;
 
             // throw out first 1000
-            for (int i = 0; i < 1000; i++)
-            {
+            for (int i = 0; i < 1000; i++) {
                 RunParseTest(new StringReader(text), iterations, true);
 
-                if (options.HasFlag(Config.EMIT))
-                {
+                if (options.HasFlag(Config.EMIT)) {
                     RunEmitTest(Parser.GetInterpreterFromText(text), iterations, true, false);
                 }
 
-                if (options.HasFlag(Config.EMIT_COMMENT))
-                {
+                if (options.HasFlag(Config.EMIT_COMMENT)) {
                     RunEmitTest(Parser.GetInterpreterFromText(text), iterations, true, true);
                 }
 
-                if (options.HasFlag(Config.READ_EMIT))
-                {
+                if (options.HasFlag(Config.READ_EMIT)) {
                     RunReadEmitTest(Parser.GetInterpreterFromText(text), iterations, true, false);
                 }
 
-                if (options.HasFlag(Config.READ_EMIT_COMMENT))
-                {
+                if (options.HasFlag(Config.READ_EMIT_COMMENT)) {
                     RunReadEmitTest(Parser.GetInterpreterFromText(text), iterations, true, true);
                 }
 
-                if (options.HasFlag(Config.EXECUTE))
-                {
+                if (options.HasFlag(Config.EXECUTE)) {
                     RunExecuteTest(Parser.GetInterpreterFromText(text), iterations, true, false);
                 }
 
-                if (options.HasFlag(Config.SAFE_EXECUTE))
-                {
+                if (options.HasFlag(Config.SAFE_EXECUTE)) {
                     RunExecuteTest(Parser.GetInterpreterFromText(text), iterations, true, true);
                 }
             }
@@ -170,33 +145,27 @@ namespace DOML.Test
 
             RunParseTest(new StringReader(text), iterations, false);
 
-            if (options.HasFlag(Config.EMIT))
-            {
+            if (options.HasFlag(Config.EMIT)) {
                 RunEmitTest(Parser.GetInterpreterFromText(text), iterations, false, false);
             }
 
-            if (options.HasFlag(Config.EMIT_COMMENT))
-            {
+            if (options.HasFlag(Config.EMIT_COMMENT)) {
                 RunEmitTest(Parser.GetInterpreterFromText(text), iterations, false, true);
             }
 
-            if (options.HasFlag(Config.READ_EMIT))
-            {
+            if (options.HasFlag(Config.READ_EMIT)) {
                 RunReadEmitTest(Parser.GetInterpreterFromText(text), iterations, false, false);
             }
 
-            if (options.HasFlag(Config.READ_EMIT_COMMENT))
-            {
+            if (options.HasFlag(Config.READ_EMIT_COMMENT)) {
                 RunReadEmitTest(Parser.GetInterpreterFromText(text), iterations, false, true);
             }
 
-            if (options.HasFlag(Config.EXECUTE))
-            {
+            if (options.HasFlag(Config.EXECUTE)) {
                 RunExecuteTest(Parser.GetInterpreterFromText(text), iterations, false, false);
             }
 
-            if (options.HasFlag(Config.SAFE_EXECUTE))
-            {
+            if (options.HasFlag(Config.SAFE_EXECUTE)) {
                 RunExecuteTest(Parser.GetInterpreterFromText(text), iterations, false, true);
             }
         }
@@ -207,26 +176,22 @@ namespace DOML.Test
         /// <param name="reader"> The reader to read. </param>
         /// <param name="iterations"> How many times to run. </param>
         /// <param name="throwOut"> Print out average of results. </param>
-        private static void RunParseTest(TextReader reader, int iterations, bool throwOut)
-        {
+        private static void RunParseTest(TextReader reader, int iterations, bool throwOut) {
             long total = 0;
             Stopwatch stopwatch = new Stopwatch();
 
-            for (int i = 0; i < iterations; i++)
-            {
+            for (int i = 0; i < iterations; i++) {
                 stopwatch.Restart();
                 Interpreter interpreter = Parser.GetInterpreter(reader);
                 stopwatch.Stop();
                 interpreter.HandleSafeInstruction(new Instruction(Opcodes.NOP, ""));
 
-                if (throwOut == false)
-                {
+                if (throwOut == false) {
                     total += 1000 * stopwatch.ElapsedTicks;
                 }
             }
 
-            if (throwOut == false)
-            {
+            if (throwOut == false) {
                 Log.HandleLogs = true;
                 Log.Info($"<PARSE TEST> Took {((total / (double)Stopwatch.Frequency) / iterations)}ms to complete.  Performed: {iterations} times");
                 Log.HandleLogs = true;
@@ -240,30 +205,25 @@ namespace DOML.Test
         /// <param name="iterations"> How many times to run. </param>
         /// <param name="throwOut"> Print out average of results. </param>
         /// <param name="withComments"> Emit with comments? </param>
-        private static void RunEmitTest(Interpreter interpreter, int iterations, bool throwOut, bool withComments)
-        {
+        private static void RunEmitTest(Interpreter interpreter, int iterations, bool throwOut, bool withComments) {
             Log.HandleLogs = true;
             Stopwatch stopwatch = new Stopwatch();
             long total = 0;
 
-            for (int i = 0; i < iterations; i++)
-            {
+            for (int i = 0; i < iterations; i++) {
                 StringBuilder builder = new StringBuilder();
-                using (IRWriter writer = new IRWriter(builder))
-                {
+                using (IRWriter writer = new IRWriter(builder)) {
                     stopwatch.Restart();
                     writer.Emit(interpreter, withComments);
                     stopwatch.Stop();
 
-                    if (throwOut == false)
-                    {
+                    if (throwOut == false) {
                         total += 1000 * stopwatch.ElapsedTicks;
                     }
                 }
             }
 
-            if (throwOut == false)
-            {
+            if (throwOut == false) {
                 Log.HandleLogs = true;
                 Log.Info($"<EMIT {(withComments ? "WITH COMMENTS" : "WITHOUT COMMENTS")} TEST> Took average of {((total / (double)Stopwatch.Frequency) / iterations)}ms to complete.  Did {iterations} times");
                 Log.HandleLogs = true;
@@ -277,31 +237,26 @@ namespace DOML.Test
         /// <param name="iterations"> How many times to run. </param>
         /// <param name="throwOut"> Print out average of results. </param>
         /// <param name="withComments"> Emit then read with comments? </param>
-        private static void RunReadEmitTest(Interpreter interpreter, int iterations, bool throwOut, bool withComments)
-        {
+        private static void RunReadEmitTest(Interpreter interpreter, int iterations, bool throwOut, bool withComments) {
             Log.HandleLogs = true;
             Stopwatch stopwatch = new Stopwatch();
             long total = 0;
             StringBuilder builder = new StringBuilder();
 
-            using (IRWriter writer = new IRWriter(builder))
-            {
+            using (IRWriter writer = new IRWriter(builder)) {
                 writer.Emit(interpreter, withComments);
 
-                for (int i = 0; i < iterations; i++)
-                {
+                for (int i = 0; i < iterations; i++) {
                     stopwatch.Restart();
                     Parser.GetInterpreterFromText(builder.ToString(), Parser.ReadMode.IR);
                     stopwatch.Stop();
-                    if (throwOut == false)
-                    {
+                    if (throwOut == false) {
                         total += stopwatch.ElapsedMilliseconds;
                     }
                 }
             }
 
-            if (throwOut == false)
-            {
+            if (throwOut == false) {
                 Log.HandleLogs = true;
                 Log.Info($"<READ EMIT {(withComments ? "WITH COMMENTS" : "WITHOUT COMMENTS")} TEST> Took average of {(total / iterations)}ms to complete.  Did {iterations} times");
                 Log.HandleLogs = true;
@@ -315,25 +270,21 @@ namespace DOML.Test
         /// <param name="iterations"> How many times to run. </param>
         /// <param name="throwOut"> Print out average of results. </param>
         /// <param name="safe"> Run in safe execution or unsafe. </param>
-        private static void RunExecuteTest(Interpreter interpreter, int iterations, bool throwOut, bool safe)
-        {
+        private static void RunExecuteTest(Interpreter interpreter, int iterations, bool throwOut, bool safe) {
             Log.HandleLogs = true;
             Stopwatch stopwatch = new Stopwatch();
             long total = 0;
 
-            for (int i = 0; i < iterations; i++)
-            {
+            for (int i = 0; i < iterations; i++) {
                 stopwatch.Restart();
                 interpreter.Execute(safe);
                 stopwatch.Stop();
-                if (throwOut == false)
-                {
+                if (throwOut == false) {
                     total += 1000 * stopwatch.ElapsedTicks;
                 }
             }
 
-            if (throwOut == false)
-            {
+            if (throwOut == false) {
                 Log.HandleLogs = true;
                 Log.Info($"<{(safe ? "SAFE" : "UNSAFE")} EXECUTE TEST> Took average of {((total / (double)Stopwatch.Frequency) / iterations)}ms to complete.  Did {iterations} times");
                 Log.HandleLogs = true;

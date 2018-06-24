@@ -6,15 +6,12 @@ using DOML.Logger;
 using DOML.IR;
 using DOML;
 
-public static partial class DOMLBindings
-{
-    public static void LinkBindings()
-    {
+public static partial class DOMLBindings {
+    public static void LinkBindings() {
         StaticBindings.BindingsForSystem.____ColorStaticBindings____.RegisterCalls();
     }
 
-    public static void UnLinkBindings()
-    {
+    public static void UnLinkBindings() {
         StaticBindings.BindingsForSystem.____ColorStaticBindings____.UnRegisterCalls();
     }
 }

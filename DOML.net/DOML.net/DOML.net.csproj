@@ -33,6 +33,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Types.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="System.IO.FileSystem" Version="4.3.0" />
   </ItemGroup>
 

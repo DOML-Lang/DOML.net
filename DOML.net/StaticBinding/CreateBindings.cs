@@ -13,13 +13,11 @@ using System.IO;
 using System.Linq;
 using System.Reflection; // While this dependency is 'fine' I would argue we should actively aim to not need it.
 
-namespace StaticBindings
-{
+namespace StaticBindings {
     /// <summary>
     /// Create Static Bindings.
     /// </summary>
-    public static class CreateBindings
-    {
+    public static class CreateBindings {
         /// <summary>
         /// The directory path to create bindings to.
         /// </summary>
@@ -28,14 +26,11 @@ namespace StaticBindings
         /// <summary>
         /// The directory info of the path.
         /// </summary>
-        public static DirectoryInfo Directory
-        {
-            get
-            {
+        public static DirectoryInfo Directory {
+            get {
                 return new DirectoryInfo(DirectoryPath);
             }
-            set
-            {
+            set {
                 DirectoryPath = value.FullName;
             }
         }
@@ -58,14 +53,12 @@ namespace StaticBindings
         /// </summary>
         /// <param name="forClass"> The type to create.</param>
         /// <param name="rootNamespace"> The root namespace. </param>
-        public static void Create(Type forClass, string rootNamespace)
-        {
+        public static void Create(Type forClass, string rootNamespace) {
             // Safety checks
             if (DirectoryPath == null)
                 throw new NullReferenceException("Can't create bindings to a null directory path");
 
-            using (CodeWriter codeWriter = new CodeWriter(DirectoryPath + "/StaticBinding-" + forClass.FullName + ".cs", false, rootNamespace))
-            {
+            using (CodeWriter codeWriter = new CodeWriter(DirectoryPath + "/StaticBinding-" + forClass.FullName + ".cs", false, rootNamespace)) {
                 codeWriter.WriteSuppression("IDE0012", true, "Ignorning warning for shorter names");
                 codeWriter.WriteHeader();
                 codeWriter.WriteEmptyLine();
@@ -95,11 +88,9 @@ namespace StaticBindings
         /// </summary>
         /// <param name="assembly"> The assembly to search in. </param>
         /// <param name="withFinalFile"> Create the final binding file. </param>
-        public static void CreateAllFromAttributes(Assembly assembly, bool withFinalFile = true)
-        {
+        public static void CreateAllFromAttributes(Assembly assembly, bool withFinalFile = true) {
             IEnumerable<TypeInfo> classesAndStructs = assembly.DefinedTypes.Where(x => (x.IsClass || x.IsValueType) && x.GetCustomAttribute(typeof(DOMLIncludeAttribute)) != null);
-            foreach (TypeInfo type in classesAndStructs)
-            {
+            foreach (TypeInfo type in classesAndStructs) {
                 Create(type.AsType(), type.GetCustomAttribute<DOMLIncludeAttribute>().RootNamespace);
             }
 
@@ -109,8 +100,7 @@ namespace StaticBindings
         /// <summary>
         /// Create the final file to bind all the classes together.
         /// </summary>
-        public static void CreateFinalFile()
-        {
+        public static void CreateFinalFile() {
             // Safety checks
             if (DirectoryPath == null)
                 throw new NullReferenceException("Can't create bindings to a null directory path.");
@@ -118,8 +108,7 @@ namespace StaticBindings
             if (BindingFunctions == null)
                 throw new NullReferenceException("No classes created during the static binding operation.");
 
-            using (CodeWriter codeWriter = new CodeWriter(DirectoryPath + "/StaticBindingRegister.cs", false, null))
-            {
+            using (CodeWriter codeWriter = new CodeWriter(DirectoryPath + "/StaticBindingRegister.cs", false, null)) {
                 codeWriter.WriteHeader();
                 codeWriter.WriteUsings();
                 codeWriter.WriteEmptyLine();
@@ -127,8 +116,7 @@ namespace StaticBindings
                 codeWriter.WriteClassSignature("DOMLBindings", false);
 
                 codeWriter.WriteFunctionSignature("LinkBindings", string.Empty);
-                for (int i = 0; i < BindingFunctions.Count; i++)
-                {
+                for (int i = 0; i < BindingFunctions.Count; i++) {
                     if (i > 0) codeWriter.WriteEmptyLine();
 
                     codeWriter.WriteIndentLine($"{BindingFunctions[i]}.RegisterCalls();");
@@ -138,8 +126,7 @@ namespace StaticBindings
                 codeWriter.WriteEmptyLine();
 
                 codeWriter.WriteFunctionSignature("UnLinkBindings", string.Empty);
-                for (int i = 0; i < BindingFunctions.Count; i++)
-                {
+                for (int i = 0; i < BindingFunctions.Count; i++) {
                     codeWriter.WriteIndentLine($"{BindingFunctions[i]}.UnRegisterCalls();");
                 }
 

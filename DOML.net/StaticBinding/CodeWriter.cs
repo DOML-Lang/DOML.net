@@ -14,13 +14,11 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 
-namespace StaticBindings
-{
+namespace StaticBindings {
     /// <summary>
     /// This writes C# code that handles the instructions.
     /// </summary>
-    public class CodeWriter : IDisposable
-    {
+    public class CodeWriter : IDisposable {
         /// <summary>
         /// The internal writer.
         /// </summary>
@@ -54,8 +52,7 @@ namespace StaticBindings
         /// <param name="rootNamespace"> The namespace that objects exist in. </param>
         public CodeWriter(string filePath, bool append, string rootNamespace)
             : this(new StreamWriter(File.Exists(filePath) ? File.Open(filePath, FileMode.Truncate) : new FileStream(filePath, append ? FileMode.Append : FileMode.Create)),
-                  rootNamespace)
-        {
+                  rootNamespace) {
         }
 
         /// <summary>
@@ -63,8 +60,7 @@ namespace StaticBindings
         /// </summary>
         /// <param name="resultText"> The text to write to. </param>
         /// <param name="rootNamespace"> The namespace that objects exist in. </param>
-        public CodeWriter(StringBuilder resultText, string rootNamespace) : this(new StringWriter(resultText), rootNamespace)
-        {
+        public CodeWriter(StringBuilder resultText, string rootNamespace) : this(new StringWriter(resultText), rootNamespace) {
         }
 
         /// <summary>
@@ -72,8 +68,7 @@ namespace StaticBindings
         /// </summary>
         /// <param name="writer"> The writer to write to. </param>
         /// <param name="rootNamespace"> The namespace that objects exist in. </param>
-        private CodeWriter(TextWriter writer, string rootNamespace)
-        {
+        private CodeWriter(TextWriter writer, string rootNamespace) {
             this.writer = writer;
             this.rootNamespace = rootNamespace;
         }
@@ -81,16 +76,14 @@ namespace StaticBindings
         /// <summary>
         /// Deconstructor, handles disposing of writer.
         /// </summary>
-        ~CodeWriter()
-        {
+        ~CodeWriter() {
             Dispose();
         }
 
         /// <summary>
         /// Dispose writer.
         /// </summary>
-        public void Dispose()
-        {
+        public void Dispose() {
             writer.Dispose();
         }
 
@@ -133,24 +126,21 @@ namespace StaticBindings
         /// </summary>
         /// <param name="code"> The code to suppress. </param>
         /// <param name="disable"> If true it'll disable the suppression else restore it. </param>
-        public void WriteSuppression(string code, bool disable, string comment)
-        {
+        public void WriteSuppression(string code, bool disable, string comment) {
             WriteLine($"#pragma warning {(disable ? "disable" : "restore")} {code} // {comment}");
         }
 
         /// <summary>
         /// Writes the auto generated header.
         /// </summary>
-        public void WriteHeader()
-        {
+        public void WriteHeader() {
             Write("/* THIS IS AUTO-GENERATED\n * ALL CHANGES WILL BE RESET\n * UPON GENERATION\n */\n");
         }
 
         /// <summary>
         /// Writes all the DOML usings.
         /// </summary>
-        public void WriteUsings()
-        {
+        public void WriteUsings() {
             WriteLine("using DOML.Logger;");
             WriteLine("using DOML.IR;");
         }
@@ -158,8 +148,7 @@ namespace StaticBindings
         /// <summary>
         /// Writes the namespace signature.
         /// </summary>
-        public void WriteNamespaceSignature(string before = "")
-        {
+        public void WriteNamespaceSignature(string before = "") {
             WriteIndentLine($"namespace {before}{rootNamespace}");
             WriteIndentLine("{");
             indentLevel++;
@@ -169,8 +158,7 @@ namespace StaticBindings
         /// Writes the closing brace.
         /// </summary>
         /// <remarks> Use this rather than <see cref="Write(string)"/> as it will reflect the change in the indent too. </remarks>
-        public void CloseBrace()
-        {
+        public void CloseBrace() {
             indentLevel--;
             WriteIndentLine("}");
         }
@@ -179,8 +167,7 @@ namespace StaticBindings
         /// Writes the class (its signature, and all its fields, properties, and functions).
         /// </summary>
         /// <param name="classType"> The class type to write. </param>
-        public void WriteClass(Type classType)
-        {
+        public void WriteClass(Type classType) {
             // Get all runtime fields/properties/methods/constructors
             IEnumerable<FieldInfo> fieldInfo = classType.GetRuntimeFields();
             IEnumerable<PropertyInfo> propertyInfo = classType.GetRuntimeProperties();
@@ -194,8 +181,7 @@ namespace StaticBindings
             bool notInitial = false;
 
             // Constructors
-            foreach (ConstructorInfo info in constructorInfo.Where(x => x.DeclaringType == classType))
-            {
+            foreach (ConstructorInfo info in constructorInfo.Where(x => x.DeclaringType == classType)) {
                 if (notInitial) WriteEmptyLine();
                 else notInitial = true;
 
@@ -203,22 +189,19 @@ namespace StaticBindings
             }
 
             // Fields
-            foreach (FieldInfo info in fieldInfo.Where(x => x.DeclaringType == classType))
-            {
+            foreach (FieldInfo info in fieldInfo.Where(x => x.DeclaringType == classType)) {
                 WriteEmptyLine();
                 WriteField(info, objectType);
             }
 
             // Properties
-            foreach (PropertyInfo info in propertyInfo.Where(x => x.DeclaringType == classType))
-            {
+            foreach (PropertyInfo info in propertyInfo.Where(x => x.DeclaringType == classType)) {
                 WriteEmptyLine();
                 WriteProperty(info, objectType);
             }
 
             // Methods
-            foreach (MethodInfo info in methodInfo.Where(x => x.DeclaringType == classType))
-            {
+            foreach (MethodInfo info in methodInfo.Where(x => x.DeclaringType == classType)) {
                 WriteEmptyLine();
                 WriteFunction(info, objectType);
             }
@@ -236,11 +219,9 @@ namespace StaticBindings
         /// <summary>
         /// Writes all the register calls.
         /// </summary>
-        public void WriteRegisterCall()
-        {
+        public void WriteRegisterCall() {
             WriteFunctionSignature("RegisterCalls", string.Empty);
-            for (int i = 0; i < registerCalls.Count; i++)
-            {
+            for (int i = 0; i < registerCalls.Count; i++) {
                 WriteIndentLine(registerCalls[i]);
             }
             CloseBrace();
@@ -249,11 +230,9 @@ namespace StaticBindings
         /// <summary>
         /// Writes all the unregister calls.
         /// </summary>
-        public void WriteUnRegisterCall()
-        {
+        public void WriteUnRegisterCall() {
             WriteFunctionSignature("UnRegisterCalls", string.Empty);
-            for (int i = 0; i < unregisterCalls.Count; i++)
-            {
+            for (int i = 0; i < unregisterCalls.Count; i++) {
                 WriteIndentLine(unregisterCalls[i]);
             }
             CloseBrace();
@@ -264,8 +243,7 @@ namespace StaticBindings
         /// </summary>
         /// <param name="name"> The name of the class. </param>
         /// <param name="decorator"> Add decorator ____ and StaticBindings____ to the begin/end. </param>
-        public void WriteClassSignature(string name, bool decorator = true)
-        {
+        public void WriteClassSignature(string name, bool decorator = true) {
             WriteIndentLine($"public static partial class {(decorator ? "____" : string.Empty)}{name}{(decorator ? "StaticBindings____" : string.Empty)}");
             WriteIndentLine("{");
             indentLevel++;
@@ -276,8 +254,7 @@ namespace StaticBindings
         /// </summary>
         /// <param name="name"> The name of the function. </param>
         /// <param name="parameters"> All the parameters. </param>
-        public void WriteFunctionSignature(string name, string parameters)
-        {
+        public void WriteFunctionSignature(string name, string parameters) {
             WriteIndentLine($"public static void {name}({parameters})");
             WriteIndentLine("{");
             indentLevel++;
@@ -288,16 +265,14 @@ namespace StaticBindings
         /// </summary>
         /// <param name="constructorInfo"> TypeInfo of constructor. </param>
         /// <param name="objectType"> The object type. </param>
-        public void WriteConstructor(ConstructorInfo constructorInfo, string objectType)
-        {
+        public void WriteConstructor(ConstructorInfo constructorInfo, string objectType) {
             ParameterInfo[] info = constructorInfo.GetParameters();
             string functionName = "New" + objectType + (info.Length > 0 ? string.Join("", info.Select(x => x.ParameterType.FullName.Replace('.', '_'))) : "Empty");
 
             WriteFunctionSignature(functionName, "InterpreterRuntime runtime");
             WriteWithIndent($"if (");
 
-            for (int i = 0; i < info.Length; i++)
-            {
+            for (int i = 0; i < info.Length; i++) {
                 Write($"!runtime.Pop(out {info[i].ParameterType.FullName} a{info.Length - i}) || ");
             }
 
@@ -321,8 +296,7 @@ namespace StaticBindings
         /// </summary>
         /// <param name="methodInfo"> TypeInfo of constructor. </param>
         /// <param name="objectType"> The object type. </param>
-        public void WriteFunction(MethodInfo methodInfo, string objectType)
-        {
+        public void WriteFunction(MethodInfo methodInfo, string objectType) {
             ParameterInfo[] info = methodInfo.GetParameters();
             string type = methodInfo.ReturnType == typeof(void) ? "Set" : "Get";
             string functionName = type + methodInfo.Name;
@@ -330,13 +304,11 @@ namespace StaticBindings
             WriteFunctionSignature(functionName, "InterpreterRuntime runtime");
             WriteWithIndent($"if (!runtime.Pop(out {methodInfo.DeclaringType.FullName} result)");
 
-            for (int i = 0; i < info.Length; i++)
-            {
+            for (int i = 0; i < info.Length; i++) {
                 Write($" || !runtime.Pop(out {info[i].ParameterType.FullName} a{info.Length - i})");
             }
 
-            if (methodInfo.ReturnType != typeof(void))
-            {
+            if (methodInfo.ReturnType != typeof(void)) {
                 if (info.Length > 0)
                     Write($" || !runtime.Push(result.{methodInfo.Name}({string.Join(",", Enumerable.Range(1, info.Length).Select(x => "a" + x))}), true)");
                 else
@@ -351,8 +323,7 @@ namespace StaticBindings
 
             indentLevel--;
 
-            if (methodInfo.ReturnType == typeof(void))
-            {
+            if (methodInfo.ReturnType == typeof(void)) {
                 WriteIndentLine("else");
                 indentLevel++;
 
@@ -368,13 +339,10 @@ namespace StaticBindings
 
             string name = $"{methodInfo.GetCustomAttribute<DOMLCustomiseAttribute>()?.Name ?? methodInfo.Name}";
 
-            if (type == "Get")
-            {
+            if (type == "Get") {
                 registerCalls.Add($"InstructionRegister.RegisterGetter(\"{name}\", \"{rootNamespace}.{objectType}\", 1, {functionName});");
                 unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}\", \"{rootNamespace}.{objectType}\");");
-            }
-            else
-            {
+            } else {
                 // Set
                 registerCalls.Add($"InstructionRegister.RegisterSetter(\"{name}\", \"{rootNamespace}.{objectType}\", {info.Length}, {functionName});");
                 unregisterCalls.Add($"InstructionRegister.UnRegisterSetter(\"{name}\", \"{rootNamespace}.{objectType}\");");
@@ -386,12 +354,10 @@ namespace StaticBindings
         /// </summary>
         /// <param name="propertyInfo"> TypeInfo of property. </param>
         /// <param name="objectType"> Object Type. </param>
-        public void WriteProperty(PropertyInfo propertyInfo, string objectType)
-        {
+        public void WriteProperty(PropertyInfo propertyInfo, string objectType) {
             string name = $"{propertyInfo.GetCustomAttribute<DOMLCustomiseAttribute>()?.Name ?? propertyInfo.Name}";
 
-            if (propertyInfo.CanRead && (propertyInfo.GetMethod?.IsPublic ?? false))
-            {
+            if (propertyInfo.CanRead && (propertyInfo.GetMethod?.IsPublic ?? false)) {
                 // Write Getter
                 WriteFunctionSignature($"GetProperty{propertyInfo.Name}", "InterpreterRuntime runtime");
                 WriteIndentLine($"if (!runtime.Pop(out {propertyInfo.DeclaringType.Name} result) || !runtime.Push(result.{propertyInfo.Name}, true))");
@@ -404,8 +370,7 @@ namespace StaticBindings
                 unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}\", \"{rootNamespace}.{objectType}\");");
             }
 
-            if (propertyInfo.CanWrite && (propertyInfo.SetMethod?.IsPublic ?? false))
-            {
+            if (propertyInfo.CanWrite && (propertyInfo.SetMethod?.IsPublic ?? false)) {
                 WriteEmptyLine();
 
                 // Write Setter
@@ -426,8 +391,7 @@ namespace StaticBindings
         /// </summary>
         /// <param name="fieldInfo"> TypeInfo of field. </param>
         /// <param name="objectType"> Object Type. </param>
-        public void WriteField(FieldInfo fieldInfo, string objectType)
-        {
+        public void WriteField(FieldInfo fieldInfo, string objectType) {
             string name = $"{fieldInfo.GetCustomAttribute<DOMLCustomiseAttribute>()?.Name ?? fieldInfo.Name}";
 
             // Write Getter
@@ -441,8 +405,7 @@ namespace StaticBindings
             registerCalls.Add($"InstructionRegister.RegisterGetter(\"{name}\", \"{rootNamespace}.{objectType}\", {1}, GetField{fieldInfo.Name});");
             unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}\", \"{rootNamespace}.{objectType}\");");
 
-            if (fieldInfo.IsLiteral == false && fieldInfo.IsInitOnly == false)
-            {
+            if (fieldInfo.IsLiteral == false && fieldInfo.IsInitOnly == false) {
                 WriteEmptyLine();
 
                 // Write Setter

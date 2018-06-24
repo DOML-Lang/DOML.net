@@ -13,14 +13,12 @@ using System.Reflection;
 using DOML.IR;
 using DOML.Logger;
 
-namespace ReflectionBindings
-{
+namespace ReflectionBindings {
     /// <summary>
     /// Create reflected bindings.
     /// Not as fast as static but can be done at runtime.
     /// </summary>
-    public static class CreateBindings
-    {
+    public static class CreateBindings {
         /// <summary>
         /// Create from a given class type.
         /// </summary>
@@ -33,15 +31,13 @@ namespace ReflectionBindings
         /// </summary>
         /// <param name="forClass"> The class to generate from. </param>
         /// <param name="rootNamespace"> The namespace to place things in. </param>
-        public static void Create(Type forClass, string rootNamespace)
-        {
+        public static void Create(Type forClass, string rootNamespace) {
             IEnumerable<ConstructorInfo> constructorInfo = forClass.GetTypeInfo().DeclaredConstructors;
             IEnumerable<FieldInfo> fieldInfo = forClass.GetRuntimeFields();
             IEnumerable<PropertyInfo> propertyInfo = forClass.GetRuntimeProperties();
             IEnumerable<MethodInfo> methodInfo = forClass.GetRuntimeMethods();
 
-            foreach (ConstructorInfo info in constructorInfo)
-            {
+            foreach (ConstructorInfo info in constructorInfo) {
                 ConstructorInfo copyInfo = info;
                 ParameterInfo[] parameterInfo = copyInfo.GetParameters();
 
@@ -77,17 +73,14 @@ namespace ReflectionBindings
                 InstructionRegister.RegisterConstructor($"{rootNamespace}.{forClass.Name}", action);
             }
 
-            foreach (FieldInfo info in fieldInfo)
-            {
+            foreach (FieldInfo info in fieldInfo) {
                 FieldInfo copyInfo = info;
-                InstructionRegister.RegisterGetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime) =>
-                {
+                InstructionRegister.RegisterGetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime) => {
                     if (!runtime.Pop(out object result) || !runtime.Push(copyInfo.GetValue(result), true))
                         Log.Error($"{forClass.Name}::{info.Name} Getter Failed");
                 });
 
-                InstructionRegister.RegisterSetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime) =>
-                {
+                InstructionRegister.RegisterSetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime) => {
                     if (!runtime.Pop(out object result) || !runtime.Pop(out object valueToSet))
                         Log.Error($"{forClass.Name}::{info.Name} Setter Failed");
                     else
@@ -95,23 +88,18 @@ namespace ReflectionBindings
                 });
             }
 
-            foreach (PropertyInfo info in propertyInfo)
-            {
+            foreach (PropertyInfo info in propertyInfo) {
                 PropertyInfo copyInfo = info;
 
-                if (info.CanRead && (info.GetMethod?.IsPublic ?? false))
-                {
-                    InstructionRegister.RegisterGetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime) =>
-                    {
+                if (info.CanRead && (info.GetMethod?.IsPublic ?? false)) {
+                    InstructionRegister.RegisterGetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime) => {
                         if (!runtime.Pop(out object result) || !runtime.Push(copyInfo.GetValue(result), true))
                             Log.Error($"{forClass.Name}::{info.Name} Getter Failed");
                     });
                 }
 
-                if (info.CanWrite && (info.SetMethod?.IsPublic ?? false))
-                {
-                    InstructionRegister.RegisterSetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime) =>
-                    {
+                if (info.CanWrite && (info.SetMethod?.IsPublic ?? false)) {
+                    InstructionRegister.RegisterSetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime) => {
                         if (!runtime.Pop(out object result) || !runtime.Pop(out object valueToSet))
                             Log.Error($"{forClass.Name}::{info.Name} Setter Failed");
                         else
@@ -120,13 +108,11 @@ namespace ReflectionBindings
                 }
             }
 
-            foreach (MethodInfo info in methodInfo)
-            {
+            foreach (MethodInfo info in methodInfo) {
                 MethodInfo copyInfo = info;
                 ParameterInfo[] parameterInfo = copyInfo.GetParameters();
 
-                if (copyInfo.ReturnType != typeof(void))
-                {
+                if (copyInfo.ReturnType != typeof(void)) {
                     // Getter
                     Action<InterpreterRuntime> action = (InterpreterRuntime runtime) =>
                     {
@@ -158,16 +144,11 @@ namespace ReflectionBindings
                     };
 
                     InstructionRegister.RegisterGetter(info.Name, forClass.Name, 1, action);
-                }
-                else
-                {
+                } else {
                     // Setter
-                    InstructionRegister.RegisterSetter(info.Name, forClass.Name, 1, (InterpreterRuntime runtime) =>
-                    {
-                        if (runtime.Pop(out object result))
-                        {
-                            if (parameterInfo.Length > 0)
-                            {
+                    InstructionRegister.RegisterSetter(info.Name, forClass.Name, 1, (InterpreterRuntime runtime) => {
+                        if (runtime.Pop(out object result)) {
+                            if (parameterInfo.Length > 0) {
                                 object[] objects = new object[parameterInfo.Length] ;
 
                                 for (int i = 0; i < parameterInfo.Length; i++)
@@ -175,13 +156,10 @@ namespace ReflectionBindings
                                         break;
 
                                 // Since it will break but not assign objects[i] if the pop goes wrong we can just check if it has set it
-                                if (objects[objects.Length - 1] != null)
-                                {
+                                if (objects[objects.Length - 1] != null) {
                                     copyInfo.Invoke(result, objects);
                                 }
-                            }
-                            else
-                            {
+                            } else {
                                 copyInfo.Invoke(result, null);
                             }
 

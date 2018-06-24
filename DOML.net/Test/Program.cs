@@ -27,31 +27,26 @@ using BenchmarkDotNet.Attributes.Exporters;
 using System.Reflection;
 using System.Linq;
 
-namespace Test.UnitTests
-{
-    public class Color
-    {
+namespace Test.UnitTests {
+    public class Color {
         public float R, G, B;
         public string Name;
 
-        public void RGB(float R, float G, float B)
-        {
+        public void RGB(float R, float G, float B) {
             this.R = R / 255;
             this.G = G / 255;
             this.B = B / 255;
         }
 
         [DOMLCustomise("RGB.Normalised")]
-        public void RGBNormalised(float R, float G, float B)
-        {
+        public void RGBNormalised(float R, float G, float B) {
             this.R = R;
             this.G = G;
             this.B = B;
         }
 
         [DOMLCustomise("RGB.Hex")]
-        public void RGBHex(int hex)
-        {
+        public void RGBHex(int hex) {
             int r = ((hex & 0xff0000) >> 16) / 255;
             int g = ((hex & 0xff00) >> 8) / 255;
             int b = (hex & 0xff) / 255;
@@ -59,8 +54,7 @@ namespace Test.UnitTests
     }
 
     [RPlotExporter]
-    public class AllTests
-    {
+    public class AllTests {
         public Interpreter baseInterpreter;
 
         public string IRWithComments;
@@ -69,8 +63,7 @@ namespace Test.UnitTests
         [Params(true, false)]
         public bool WithCondition;
 
-        public AllTests()
-        {
+        public AllTests() {
             DOMLBindings.LinkBindings();
             Log.HandleLogs = false;
 
@@ -103,8 +96,7 @@ namespace Test.UnitTests
         }
 
         [Benchmark]
-        public Interpreter ParseTest()
-        {
+        public Interpreter ParseTest() {
             return Parser.GetInterpreterFromText(@"
             // This is a comment
             // Construct a new System.Color
@@ -126,34 +118,28 @@ namespace Test.UnitTests
         }
 
         [Benchmark]
-        public void EmitTest()
-        {
+        public void EmitTest() {
             StringBuilder builder = new StringBuilder();
             IRWriter.EmitToString(baseInterpreter, builder, WithCondition);
         }
 
         [Benchmark]
-        public void ExecuteTest()
-        {
+        public void ExecuteTest() {
             baseInterpreter.Execute(WithCondition);
         }
 
         [Benchmark]
-        public Interpreter ReadIR()
-        {
+        public Interpreter ReadIR() {
             using (StringReader reader = new StringReader(WithCondition ? IRWithComments : IRWithoutComments))
                 return Parser.GetInterpreterFromIR(reader);
         }
     }
 
-    public class Program
-    {
-        static Program()
-        {
+    public class Program {
+        static Program() {
         }
 
-        public static void Main(string[] args)
-        {
+        public static void Main(string[] args) {
             Console.SetWindowSize((int)(Console.LargestWindowWidth / 1.5f), (int)(Console.LargestWindowHeight / 1.5f));
 #if BenchmarkDotNet
             Summary summary = BenchmarkRunner.Run<AllTests>();

@@ -13,13 +13,11 @@ using DOML.Logger;
 using System.Linq;
 using System.Reflection;
 
-namespace DOML.IR
-{
+namespace DOML.IR {
     /// <summary>
     /// A register of all the instructions.
     /// </summary>
-    public static class InstructionRegister
-    {
+    public static class InstructionRegister {
         /// <summary>
         /// These represent the actions to run.
         /// </summary>
@@ -68,15 +66,11 @@ namespace DOML.IR
         /// </summary>
         /// <param name="name"> Function name. </param>
         /// <param name="func"> The function. </param>
-        public static void RegisterConstructor(string name, Action<InterpreterRuntime> func)
-        {
+        public static void RegisterConstructor(string name, Action<InterpreterRuntime> func) {
             name = "new " + name;
-            if (Actions.ContainsKey(name) == false)
-            {
+            if (Actions.ContainsKey(name) == false) {
                 Actions.Add(name, func);
-            }
-            else
-            {
+            } else {
                 Log.Warning($"Action already exists for {name}, will set to the one provided");
                 Actions[name] = func;
             }
@@ -86,8 +80,7 @@ namespace DOML.IR
         /// Unregisters a constructor.
         /// </summary>
         /// <param name="name"> Function name. </param>
-        public static void UnRegisterConstructor(string name)
-        {
+        public static void UnRegisterConstructor(string name) {
             Actions.Remove("new " + name);
         }
 
@@ -95,8 +88,7 @@ namespace DOML.IR
         /// Clears all instructions.
         /// Doesn't include system made ones.
         /// </summary>
-        public static void ClearInstructions()
-        {
+        public static void ClearInstructions() {
             Actions.Clear();
         }
 
@@ -104,8 +96,7 @@ namespace DOML.IR
         /// Unregisters action for name and sizeof operators.
         /// </summary>
         /// <param name="name"> The name to unregister. </param>
-        private static void UnRegisterActionAndSizeOf(string name)
-        {
+        private static void UnRegisterActionAndSizeOf(string name) {
             Actions.Remove(name);
             SizeOf.Remove(name);
         }
@@ -116,26 +107,19 @@ namespace DOML.IR
         /// <param name="name"> The function name. </param>
         /// <param name="amount"> The amount of sizeofs. </param>
         /// <param name="func"> The function. </param>
-        private static void RegisterActionAndSizeOf(string name, int amount, Action<InterpreterRuntime> func)
-        {
-            if (Actions.ContainsKey(name) == false)
-            {
+        private static void RegisterActionAndSizeOf(string name, int amount, Action<InterpreterRuntime> func) {
+            if (Actions.ContainsKey(name) == false) {
                 Actions.Add(name, func);
-            }
-            else
-            {
+            } else {
                 Log.Warning($"Action already exists for {name}, will set to the one provided");
                 Actions[name] = func;
             }
 
-            if (SizeOf.ContainsKey(name))
-            {
+            if (SizeOf.ContainsKey(name)) {
                 Log.Warning($"SizeOf already exists for {name}, will choose the higher variant.");
                 if (SizeOf[name] < amount)
                     SizeOf[name] = amount;
-            }
-            else
-            {
+            } else {
                 SizeOf.Add(name, amount);
             }
         }

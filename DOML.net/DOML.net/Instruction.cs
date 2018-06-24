@@ -7,13 +7,11 @@
 // ====================================================
 #endregion
 
-namespace DOML.IR
-{
+namespace DOML.IR {
     /// <summary>
     /// An instruction consists of just an opcode and a parameter.
     /// </summary>
-    public struct Instruction
-    {
+    public struct Instruction {
         /// <summary>
         /// The opcode for the instruction.
         /// </summary>
@@ -22,28 +20,26 @@ namespace DOML.IR
         /// <summary>
         /// The parameter of the command.
         /// </summary>
-        public readonly object Parameter;
+        public readonly object[] Parameters;
 
         /// <summary>
         /// Create a new instruction from the byte value of the opcode and the parameter.
         /// </summary>
         /// <param name="opcode"> The byte code value. </param>
-        /// <param name="parameter"> The parameter. </param>
-        public Instruction(byte opcode, object parameter)
-        {
+        /// <param name="parameters"> The parameters. </param>
+        public Instruction(byte opcode, object[] parameters) {
             OpCode = opcode;
-            Parameter = parameter;
+            Parameters = parameters;
         }
 
         /// <summary>
         /// Create a new instruction from the opcode and the parameter.
         /// </summary>
         /// <param name="opcode"> The opcode. </param>
-        /// <param name="parameter"> The parameter. </param>
-        public Instruction(Opcodes opcode, object parameter)
-        {
+        /// <param name="parameters"> The parameters. </param>
+        public Instruction(Opcodes opcode, object[] parameters) {
             OpCode = (byte)opcode;
-            Parameter = parameter;
+            Parameters = parameters;
         }
     }
 }
