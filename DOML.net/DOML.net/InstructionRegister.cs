@@ -21,13 +21,11 @@ namespace DOML.IR {
         /// <summary>
         /// These represent the actions to run.
         /// </summary>
-        public readonly static Dictionary<string, Action<InterpreterRuntime>> Actions = new Dictionary<string, Action<InterpreterRuntime>>();
+        public readonly static Dictionary<string, Action<InterpreterRuntime, int>> Setters = new Dictionary<string, Action<InterpreterRuntime, int>>();
 
-        /// <summary>
-        /// Expected size of operations.
-        /// Either amount of parameters or amount of return variables.
-        /// </summary>
-        public readonly static Dictionary<string, int> SizeOf = new Dictionary<string, int>();
+        public readonly static Dictionary<string, Action<InterpreterRuntime, int>> Constructors = new Dictionary<string, Action<InterpreterRuntime, int>>();
+
+        public readonly static Dictionary<string, Action<InterpreterRuntime, int>> Getters = new Dictionary<string, Action<InterpreterRuntime, int>>();
 
         /// <summary>
         /// Register a getter function.
@@ -36,7 +34,7 @@ namespace DOML.IR {
         /// <param name="forObject"> The object name this refers to. </param>
         /// <param name="returnCount"> The amount of return variables. </param>
         /// <param name="func"> The function. </param>
-        public static void RegisterGetter(string name, string forObject, int returnCount, Action<InterpreterRuntime> func) => RegisterActionAndSizeOf($"get {forObject}::{name}", returnCount, func);
+        public static void RegisterGetter(string name, string forObject, int returnCount, Action<InterpreterRuntime, int> func) => RegisterActionAndSizeOf($"get {forObject}::{name}", returnCount, func);
 
         /// <summary>
         /// Register a setter function.
@@ -45,7 +43,7 @@ namespace DOML.IR {
         /// <param name="forObject"> The object name this refers to. </param>
         /// <param name="parameterCount"> The amount of parameter variables. </param>
         /// <param name="func"> The function. </param>
-        public static void RegisterSetter(string name, string forObject, int parameterCount, Action<InterpreterRuntime> func) => RegisterActionAndSizeOf($"set {forObject}::{name}", parameterCount, func);
+        public static void RegisterSetter(string name, string forObject, int parameterCount, Action<InterpreterRuntime, int> func) => RegisterActionAndSizeOf($"set {forObject}::{name}", parameterCount, func);
 
         /// <summary>
         /// Unregisters a getter function.
@@ -66,13 +64,12 @@ namespace DOML.IR {
         /// </summary>
         /// <param name="name"> Function name. </param>
         /// <param name="func"> The function. </param>
-        public static void RegisterConstructor(string name, Action<InterpreterRuntime> func) {
-            name = "new " + name;
-            if (Actions.ContainsKey(name) == false) {
-                Actions.Add(name, func);
+        public static void RegisterConstructor(string name, Action<InterpreterRuntime, int> func) {
+            if (Constructors.ContainsKey(name) == false) {
+                Constructors.Add(name, func);
             } else {
                 Log.Warning($"Action already exists for {name}, will set to the one provided");
-                Actions[name] = func;
+                Constructors[name] = func;
             }
         }
 
@@ -81,7 +78,7 @@ namespace DOML.IR {
         /// </summary>
         /// <param name="name"> Function name. </param>
         public static void UnRegisterConstructor(string name) {
-            Actions.Remove("new " + name);
+            Constructors.Remove(name);
         }
 
         /// <summary>
@@ -89,16 +86,9 @@ namespace DOML.IR {
         /// Doesn't include system made ones.
         /// </summary>
         public static void ClearInstructions() {
-            Actions.Clear();
-        }
-
-        /// <summary>
-        /// Unregisters action for name and sizeof operators.
-        /// </summary>
-        /// <param name="name"> The name to unregister. </param>
-        private static void UnRegisterActionAndSizeOf(string name) {
-            Actions.Remove(name);
-            SizeOf.Remove(name);
+            Constructors.Clear();
+            Getters.Clear();
+            Setters.Clear();
         }
 
         /// <summary>
@@ -107,7 +97,7 @@ namespace DOML.IR {
         /// <param name="name"> The function name. </param>
         /// <param name="amount"> The amount of sizeofs. </param>
         /// <param name="func"> The function. </param>
-        private static void RegisterActionAndSizeOf(string name, int amount, Action<InterpreterRuntime> func) {
+        private static void RegisterActionAndSizeOf(string name, int amount, Action<InterpreterRuntime, int> func) {
             if (Actions.ContainsKey(name) == false) {
                 Actions.Add(name, func);
             } else {

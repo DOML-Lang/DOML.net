@@ -45,20 +45,18 @@ namespace StaticBindings {
         /// Create using a generic overload.
         /// </summary>
         /// <typeparam name="T"> The type to create. </typeparam>
-        /// <param name="rootNamespace"> The root namespace. </param>
-        public static void Create<T>(string rootNamespace) => Create(typeof(T), rootNamespace);
+        public static void Create<T>() => Create(typeof(T));
 
         /// <summary>
         /// Create all from a class.
         /// </summary>
         /// <param name="forClass"> The type to create.</param>
-        /// <param name="rootNamespace"> The root namespace. </param>
-        public static void Create(Type forClass, string rootNamespace) {
+        public static void Create(Type forClass) {
             // Safety checks
             if (DirectoryPath == null)
                 throw new NullReferenceException("Can't create bindings to a null directory path");
 
-            using (CodeWriter codeWriter = new CodeWriter(DirectoryPath + "/StaticBinding-" + forClass.FullName + ".cs", false, rootNamespace)) {
+            using (CodeWriter codeWriter = new CodeWriter(DirectoryPath + "/StaticBinding-" + forClass.FullName + ".cs", false)) {
                 codeWriter.WriteSuppression("IDE0012", true, "Ignorning warning for shorter names");
                 codeWriter.WriteHeader();
                 codeWriter.WriteEmptyLine();
@@ -66,14 +64,14 @@ namespace StaticBindings {
                 codeWriter.WriteUsings();
                 codeWriter.WriteEmptyLine();
 
-                codeWriter.WriteNamespaceSignature("StaticBindings.BindingsFor");
+                codeWriter.WriteNamespaceSignature("StaticBindings");
                 codeWriter.WriteClass(forClass);
                 codeWriter.CloseBrace();
 
                 codeWriter.WriteSuppression("IDE0012", false, "Restore warning for shorter names");
             }
 
-            BindingFunctions.Add($"StaticBindings.BindingsFor{rootNamespace}.____{forClass.Name}StaticBindings____");
+            BindingFunctions.Add($"StaticBindings.____{forClass.Name}StaticBindings____");
         }
 
         /// <summary>
@@ -91,7 +89,7 @@ namespace StaticBindings {
         public static void CreateAllFromAttributes(Assembly assembly, bool withFinalFile = true) {
             IEnumerable<TypeInfo> classesAndStructs = assembly.DefinedTypes.Where(x => (x.IsClass || x.IsValueType) && x.GetCustomAttribute(typeof(DOMLIncludeAttribute)) != null);
             foreach (TypeInfo type in classesAndStructs) {
-                Create(type.AsType(), type.GetCustomAttribute<DOMLIncludeAttribute>().RootNamespace);
+                Create(type.AsType());
             }
 
             if (withFinalFile) CreateFinalFile();
@@ -108,7 +106,7 @@ namespace StaticBindings {
             if (BindingFunctions == null)
                 throw new NullReferenceException("No classes created during the static binding operation.");
 
-            using (CodeWriter codeWriter = new CodeWriter(DirectoryPath + "/StaticBindingRegister.cs", false, null)) {
+            using (CodeWriter codeWriter = new CodeWriter(DirectoryPath + "/StaticBindingRegister.cs", false)) {
                 codeWriter.WriteHeader();
                 codeWriter.WriteUsings();
                 codeWriter.WriteEmptyLine();

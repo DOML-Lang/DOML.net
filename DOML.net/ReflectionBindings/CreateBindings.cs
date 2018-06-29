@@ -23,15 +23,13 @@ namespace ReflectionBindings {
         /// Create from a given class type.
         /// </summary>
         /// <typeparam name="T"> The class to generate from. </typeparam>
-        /// <param name="rootNamespace"> The namespace to place things in. </param>
-        public static void Create<T>(string rootNamespace) => Create(typeof(T), rootNamespace);
+        public static void Create<T>() => Create(typeof(T));
 
         /// <summary>
         /// Create from a given class type.
         /// </summary>
         /// <param name="forClass"> The class to generate from. </param>
-        /// <param name="rootNamespace"> The namespace to place things in. </param>
-        public static void Create(Type forClass, string rootNamespace) {
+        public static void Create(Type forClass) {
             IEnumerable<ConstructorInfo> constructorInfo = forClass.GetTypeInfo().DeclaredConstructors;
             IEnumerable<FieldInfo> fieldInfo = forClass.GetRuntimeFields();
             IEnumerable<PropertyInfo> propertyInfo = forClass.GetRuntimeProperties();
@@ -41,28 +39,21 @@ namespace ReflectionBindings {
                 ConstructorInfo copyInfo = info;
                 ParameterInfo[] parameterInfo = copyInfo.GetParameters();
 
-                Action<InterpreterRuntime> action = (InterpreterRuntime runtime) =>
-                {
-                    if (runtime.Pop(out object result))
-                    {
-                        if (parameterInfo.Length > 0)
-                        {
+                Action<InterpreterRuntime, int> action = (InterpreterRuntime runtime, int registerIndex) => {
+                    if (runtime.GetObject(registerIndex, out object result)) {
+                        if (parameterInfo.Length > 0) {
                             object[] objects = new object[parameterInfo.Length];
                             for (int i = 0; i < parameterInfo.Length; i++)
-                                if (!runtime.Pop(out objects[parameterInfo.Length-1-i]))
+                                if (!runtime.Pop(out objects[parameterInfo.Length - 1 - i]))
                                     break;
 
                             // Since it will break but not assign objects[i] if the pop goes wrong we can just check if it has set it
-                            if (objects[objects.Length - 1] != null)
-                            {
-                                if (runtime.Push(copyInfo.Invoke(result, objects), true))
-                                {
+                            if (objects[objects.Length - 1] != null) {
+                                if (runtime.Push(copyInfo.Invoke(result, objects), true)) {
                                     return;
                                 }
                             }
-                        }
-                        else if (runtime.Push(copyInfo.Invoke(result, null), true))
-                        {
+                        } else if (runtime.Push(copyInfo.Invoke(result, null), true)) {
                             return;
                         }
                     }
@@ -70,18 +61,18 @@ namespace ReflectionBindings {
                     Log.Error($"{forClass.Name} Constructor failed");
                 };
 
-                InstructionRegister.RegisterConstructor($"{rootNamespace}.{forClass.Name}", action);
+                InstructionRegister.RegisterConstructor($"{forClass.Name}", action);
             }
 
             foreach (FieldInfo info in fieldInfo) {
                 FieldInfo copyInfo = info;
-                InstructionRegister.RegisterGetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime) => {
-                    if (!runtime.Pop(out object result) || !runtime.Push(copyInfo.GetValue(result), true))
+                InstructionRegister.RegisterGetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime, int registerIndex) => {
+                    if (!runtime.GetObject(registerIndex, out object result) || !runtime.Push(copyInfo.GetValue(result), true))
                         Log.Error($"{forClass.Name}::{info.Name} Getter Failed");
                 });
 
-                InstructionRegister.RegisterSetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime) => {
-                    if (!runtime.Pop(out object result) || !runtime.Pop(out object valueToSet))
+                InstructionRegister.RegisterSetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime, int registerIndex) => {
+                    if (!runtime.GetObject(registerIndex, out object result) || !runtime.Pop(out object valueToSet))
                         Log.Error($"{forClass.Name}::{info.Name} Setter Failed");
                     else
                         info.SetValue(result, valueToSet);
@@ -92,15 +83,15 @@ namespace ReflectionBindings {
                 PropertyInfo copyInfo = info;
 
                 if (info.CanRead && (info.GetMethod?.IsPublic ?? false)) {
-                    InstructionRegister.RegisterGetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime) => {
-                        if (!runtime.Pop(out object result) || !runtime.Push(copyInfo.GetValue(result), true))
+                    InstructionRegister.RegisterGetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime, int registerIndex) => {
+                        if (!runtime.GetObject(registerIndex, out object result) || !runtime.Push(copyInfo.GetValue(result), true))
                             Log.Error($"{forClass.Name}::{info.Name} Getter Failed");
                     });
                 }
 
                 if (info.CanWrite && (info.SetMethod?.IsPublic ?? false)) {
-                    InstructionRegister.RegisterSetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime) => {
-                        if (!runtime.Pop(out object result) || !runtime.Pop(out object valueToSet))
+                    InstructionRegister.RegisterSetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime, int registerIndex) => {
+                        if (!runtime.GetObject(registerIndex, out object result) || !runtime.Pop(out object valueToSet))
                             Log.Error($"{forClass.Name}::{info.Name} Setter Failed");
                         else
                             info.SetValue(result, valueToSet);
@@ -114,28 +105,21 @@ namespace ReflectionBindings {
 
                 if (copyInfo.ReturnType != typeof(void)) {
                     // Getter
-                    Action<InterpreterRuntime> action = (InterpreterRuntime runtime) =>
-                    {
-                        if (runtime.Pop(out object result))
-                        {
-                            if (parameterInfo.Length > 0)
-                            {
+                    Action<InterpreterRuntime, int> action = (InterpreterRuntime runtime, int registerIndex) => {
+                        if (runtime.GetObject(registerIndex, out object result)) {
+                            if (parameterInfo.Length > 0) {
                                 object[] objects = new object[parameterInfo.Length];
                                 for (int i = 0; i < parameterInfo.Length; i++)
-                                    if (!runtime.Pop(out objects[parameterInfo.Length-1-i]))
+                                    if (!runtime.Pop(out objects[parameterInfo.Length - 1 - i]))
                                         break;
 
                                 // Since it will break but not assign objects[i] if the pop goes wrong we can just check if it has set it
-                                if (objects[objects.Length - 1] != null)
-                                {
-                                    if (runtime.Push(copyInfo.Invoke(result, objects), true))
-                                    {
+                                if (objects[objects.Length - 1] != null) {
+                                    if (runtime.Push(copyInfo.Invoke(result, objects), true)) {
                                         return;
                                     }
                                 }
-                            }
-                            else if (runtime.Push(copyInfo.Invoke(result, null), true))
-                            {
+                            } else if (runtime.Push(copyInfo.Invoke(result, null), true)) {
                                 return;
                             }
                         }
@@ -146,10 +130,10 @@ namespace ReflectionBindings {
                     InstructionRegister.RegisterGetter(info.Name, forClass.Name, 1, action);
                 } else {
                     // Setter
-                    InstructionRegister.RegisterSetter(info.Name, forClass.Name, 1, (InterpreterRuntime runtime) => {
-                        if (runtime.Pop(out object result)) {
+                    InstructionRegister.RegisterSetter(info.Name, forClass.Name, 1, (InterpreterRuntime runtime, int registerIndex) => {
+                        if (runtime.GetObject(registerIndex, out object result)) {
                             if (parameterInfo.Length > 0) {
-                                object[] objects = new object[parameterInfo.Length] ;
+                                object[] objects = new object[parameterInfo.Length];
 
                                 for (int i = 0; i < parameterInfo.Length; i++)
                                     if (!runtime.Pop(out objects[parameterInfo.Length - 1 - i]))

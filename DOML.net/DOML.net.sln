@@ -3,17 +3,17 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.26730.10
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DOML.net", "DOML.net\DOML.net.csproj", "{3074DBF4-B41D-4C6D-8D63-8B03A1D8D2D8}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DOML.net", "DOML.net\DOML.net.csproj", "{3074DBF4-B41D-4C6D-8D63-8B03A1D8D2D8}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Test", "Test\Test.csproj", "{3EF13004-B401-4B59-B00C-2BCEA4199A6E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test", "Test\Test.csproj", "{3EF13004-B401-4B59-B00C-2BCEA4199A6E}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StaticBindings", "StaticBinding\StaticBindings.csproj", "{E62C015B-2348-4532-B9C9-96BD47D7B471}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StaticBindings", "StaticBinding\StaticBindings.csproj", "{E62C015B-2348-4532-B9C9-96BD47D7B471}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReflectionBindings", "ReflectionBindings\ReflectionBindings.csproj", "{40E45214-6116-42D1-B487-C3FFDC021EA4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReflectionBindings", "ReflectionBindings\ReflectionBindings.csproj", "{40E45214-6116-42D1-B487-C3FFDC021EA4}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DOMLParser", "DOMLParser\DOMLParser.csproj", "{AF799024-2BBF-436A-A612-5866D5F64BE4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DOMLParser", "DOMLParser\DOMLParser.csproj", "{AF799024-2BBF-436A-A612-5866D5F64BE4}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DOMLTest", "DOMLTest\DOMLTest.csproj", "{75E6C517-8783-4C3A-A800-7CF7622234D3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DOMLTest", "DOMLTest\DOMLTest.csproj", "{75E6C517-8783-4C3A-A800-7CF7622234D3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -64,5 +64,8 @@ Global
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {9198F2D2-876A-43B4-B62D-E21F88007E6B}
+	EndGlobalSection
+	GlobalSection(MonoDevelopProperties) = preSolution
+		version = 0.3
 	EndGlobalSection
 EndGlobal

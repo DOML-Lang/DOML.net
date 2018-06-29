@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using DOML;
+using DOML.AST;
 using DOML.IR;
 using DOML.Logger;
 using DOML.Test;
@@ -38,15 +39,13 @@ namespace Test.UnitTests {
             this.B = B / 255;
         }
 
-        [DOMLCustomise("RGB.Normalised")]
-        public void RGBNormalised(float R, float G, float B) {
+        public void Normalized(float R, float G, float B) {
             this.R = R;
             this.G = G;
             this.B = B;
         }
 
-        [DOMLCustomise("RGB.Hex")]
-        public void RGBHex(int hex) {
+        public void Hex(int hex) {
             int r = ((hex & 0xff0000) >> 16) / 255;
             int g = ((hex & 0xff00) >> 8) / 255;
             int b = (hex & 0xff) / 255;
@@ -56,6 +55,7 @@ namespace Test.UnitTests {
     [RPlotExporter]
     public class AllTests {
         public Interpreter baseInterpreter;
+        public Parser parser;
 
         public string IRWithComments;
         public string IRWithoutComments;
@@ -64,57 +64,23 @@ namespace Test.UnitTests {
         public bool WithCondition;
 
         public AllTests() {
-            DOMLBindings.LinkBindings();
+            //DOMLBindings.LinkBindings();
             Log.HandleLogs = false;
 
-            baseInterpreter = Parser.GetInterpreterFromText(@"
-            // This is a comment
-            // Construct a new System.Color
-            @ Test        = System.Color ...
-            ;             .RGB             = 255, 64, 128 // Implicit 'array'
+            parser = new Parser();
 
-            @ TheSame     = System.Color ...
-            ;             .RGB->Normalised = 1, 0.25, 0.5, // You can have trailing commas
+            //StringBuilder comments = new StringBuilder(), noComments = new StringBuilder();
 
-            @ AgainSame   = System.Color ...
-            ;             .RGB->Hex        = 0xFF4080
-            ;             .Name            = ""OtherName""
+            //IRWriter.EmitToString(baseInterpreter, comments, true);
+            //IRWriter.EmitToString(baseInterpreter, noComments, false);
 
-            /* Multi Line Comment Blocks are great */
-            @ Copy = System.Color...
-            ;             .RGB = Test.R, Test.G, Test.B
-            ;             .Name = ""Copy""
-            ", Parser.ReadMode.DOML);
-
-            StringBuilder IRWithComments = new StringBuilder(), IRWithoutComments = new StringBuilder();
-
-            IRWriter.EmitToString(baseInterpreter, IRWithComments, true);
-            IRWriter.EmitToString(baseInterpreter, IRWithoutComments, false);
-
-            this.IRWithComments = IRWithComments.ToString();
-            this.IRWithoutComments = IRWithoutComments.ToString();
+            //this.IRWithComments = IRWithComments.ToString();
+            //this.IRWithoutComments = IRWithoutComments.ToString();
         }
 
         [Benchmark]
         public Interpreter ParseTest() {
-            return Parser.GetInterpreterFromText(@"
-            // This is a comment
-            // Construct a new System.Color
-            @ Test        = System.Color ...
-            ;             .RGB             = 255, 64, 128 // Implicit 'array'
-
-            @ TheSame     = System.Color ...
-            ;             .RGB->Normalised = 1, 0.25, 0.5, // You can have trailing commas
-
-            @ AgainSame   = System.Color ...
-            ;             .RGB->Hex        = 0xFF4080
-            ;             .Name            = ""OtherName""
-
-            /* Multi Line Comment Blocks are great */
-            @ Copy = System.Color...
-            ;             .RGB = Test.R, Test.G, Test.B
-            ;             .Name = ""Copy""
-            ", Parser.ReadMode.DOML);
+            return null;
         }
 
         [Benchmark]
@@ -130,8 +96,9 @@ namespace Test.UnitTests {
 
         [Benchmark]
         public Interpreter ReadIR() {
-            using (StringReader reader = new StringReader(WithCondition ? IRWithComments : IRWithoutComments))
-                return Parser.GetInterpreterFromIR(reader);
+            return null;
+            // using (StringReader reader = new StringReader(WithCondition ? IRWithComments : IRWithoutComments))
+            //   return Parser.GetInterpreterFromIR(reader);
         }
     }
 
@@ -140,10 +107,39 @@ namespace Test.UnitTests {
         }
 
         public static void Main(string[] args) {
-            Console.SetWindowSize((int)(Console.LargestWindowWidth / 1.5f), (int)(Console.LargestWindowHeight / 1.5f));
+            //if (Directory.Exists(Directory.GetCurrentDirectory() + "/StaticBindings") == false)
+            //    Directory.CreateDirectory(Directory.GetCurrentDirectory() + "/StaticBindings");
+
+            //CreateBindings.DirectoryPath = Directory.GetCurrentDirectory() + "/StaticBindings";
+            //CreateBindings.Create<Color>();
+            //CreateBindings.CreateFinalFile();
+
+            //Console.SetWindowSize((int)(Console.LargestWindowWidth / 1.5f), (int)(Console.LargestWindowHeight / 1.5f));
+            DOMLBindings.LinkBindings();
+            using (StreamReader reader = new StreamReader(File.OpenRead("test.doml"))) {
+                int c = reader.Read();
+                while (c > 0) {
+                    Console.Write((char)c);
+                    c = reader.Read();
+                }
+            }
+            TopLevelNode topLevel = new Parser().ParseAST(new StreamReader(File.OpenRead("test.doml")));
+
+            topLevel.BasicCodegen(Console.Out, false);
+            topLevel.BasicCodegen(Console.Out, true);
+            foreach (Instruction instruction in topLevel.GetInstructions()) {
+                Console.Write(instruction.OpCode);
+                foreach (object obj in instruction.Parameters) {
+                    Console.Write(" " + obj);
+                }
+                Console.WriteLine();
+            }
+
+            topLevel.Print(Console.Out);
+            return;
 #if BenchmarkDotNet
-            Summary summary = BenchmarkRunner.Run<AllTests>();
-            Console.Read();
+            //Summary summary = BenchmarkRunner.Run<AllTests>();
+            //Console.Read();
 #elif StaticBindings
             if (Directory.Exists(Directory.GetCurrentDirectory() + "/StaticBindings") == false)
                 Directory.CreateDirectory(Directory.GetCurrentDirectory() + "/StaticBindings");

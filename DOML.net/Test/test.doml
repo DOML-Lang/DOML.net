@@ -1,0 +1,15 @@
+﻿Test : Color {
+  RGB = 255, 64, 128, [1, 2, 3]
+}
+
+TheSame : Color::Normalized(r: 1.0, g: 0.25, b: 0.5) {
+  Name = "Bob"
+}
+
+Other : Color
+Other.Name = "X"
+
+Test.R = 50
+Test.{
+  G = 128
+}

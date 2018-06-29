@@ -9,6 +9,7 @@
     <ApplicationIcon />
     <OutputType>Library</OutputType>
     <Configurations>Debug;Release;Test</Configurations>
+    <ReleaseVersion>0.3</ReleaseVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

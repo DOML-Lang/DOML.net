@@ -25,11 +25,6 @@ namespace StaticBindings {
         private TextWriter writer;
 
         /// <summary>
-        /// The namespace that objects live in.
-        /// </summary>
-        private string rootNamespace;
-
-        /// <summary>
         /// All the registers calls.
         /// </summary>
         private List<string> registerCalls = new List<string>();
@@ -49,28 +44,23 @@ namespace StaticBindings {
         /// </summary>
         /// <param name="filePath"> The file path to output to. </param>
         /// <param name="append"> If true append to file else overwrite. </param>
-        /// <param name="rootNamespace"> The namespace that objects exist in. </param>
-        public CodeWriter(string filePath, bool append, string rootNamespace)
-            : this(new StreamWriter(File.Exists(filePath) ? File.Open(filePath, FileMode.Truncate) : new FileStream(filePath, append ? FileMode.Append : FileMode.Create)),
-                  rootNamespace) {
+        public CodeWriter(string filePath, bool append)
+            : this(new StreamWriter(File.Exists(filePath) ? File.Open(filePath, FileMode.Truncate) : new FileStream(filePath, append ? FileMode.Append : FileMode.Create))) {
         }
 
         /// <summary>
         /// Create a new code writer pointing at a path.
         /// </summary>
         /// <param name="resultText"> The text to write to. </param>
-        /// <param name="rootNamespace"> The namespace that objects exist in. </param>
-        public CodeWriter(StringBuilder resultText, string rootNamespace) : this(new StringWriter(resultText), rootNamespace) {
+        public CodeWriter(StringBuilder resultText) : this(new StringWriter(resultText)) {
         }
 
         /// <summary>
         /// Create a new code writer pointing at a path.
         /// </summary>
         /// <param name="writer"> The writer to write to. </param>
-        /// <param name="rootNamespace"> The namespace that objects exist in. </param>
-        private CodeWriter(TextWriter writer, string rootNamespace) {
+        private CodeWriter(TextWriter writer) {
             this.writer = writer;
-            this.rootNamespace = rootNamespace;
         }
 
         /// <summary>
@@ -126,6 +116,7 @@ namespace StaticBindings {
         /// </summary>
         /// <param name="code"> The code to suppress. </param>
         /// <param name="disable"> If true it'll disable the suppression else restore it. </param>
+        /// <param name="comment"> Attached comment. </param>
         public void WriteSuppression(string code, bool disable, string comment) {
             WriteLine($"#pragma warning {(disable ? "disable" : "restore")} {code} // {comment}");
         }
@@ -149,7 +140,7 @@ namespace StaticBindings {
         /// Writes the namespace signature.
         /// </summary>
         public void WriteNamespaceSignature(string before = "") {
-            WriteIndentLine($"namespace {before}{rootNamespace}");
+            WriteIndentLine($"namespace {before}");
             WriteIndentLine("{");
             indentLevel++;
         }
@@ -269,7 +260,7 @@ namespace StaticBindings {
             ParameterInfo[] info = constructorInfo.GetParameters();
             string functionName = "New" + objectType + (info.Length > 0 ? string.Join("", info.Select(x => x.ParameterType.FullName.Replace('.', '_'))) : "Empty");
 
-            WriteFunctionSignature(functionName, "InterpreterRuntime runtime");
+            WriteFunctionSignature(functionName, "InterpreterRuntime runtime, int registerIndex");
             WriteWithIndent($"if (");
 
             for (int i = 0; i < info.Length; i++) {
@@ -277,9 +268,9 @@ namespace StaticBindings {
             }
 
             if (info.Length > 0)
-                Write($"!runtime.Push(new {constructorInfo.DeclaringType.FullName}({string.Join(",", Enumerable.Range(1, info.Length).Select(x => "a" + x))}), true)");
+                Write($"!runtime.SetObject(new {constructorInfo.DeclaringType.FullName}({string.Join(",", Enumerable.Range(1, info.Length).Select(x => "a" + x))}), registerIndex)");
             else
-                Write($"!runtime.Push(new {constructorInfo.DeclaringType.FullName}(), true)");
+                Write($"!runtime.SetObject(new {constructorInfo.DeclaringType.FullName}(), registerIndex)");
 
             WriteLine(")");
             indentLevel++;
@@ -287,8 +278,8 @@ namespace StaticBindings {
             indentLevel--;
             CloseBrace();
 
-            registerCalls.Add($"InstructionRegister.RegisterConstructor(\"{rootNamespace}.{objectType}\", {functionName});");
-            unregisterCalls.Add($"InstructionRegister.UnRegisterConstructor(\"{rootNamespace}.{objectType}\");");
+            registerCalls.Add($"InstructionRegister.RegisterConstructor(\"{objectType}\", {functionName});");
+            unregisterCalls.Add($"InstructionRegister.UnRegisterConstructor(\"{objectType}\");");
         }
 
         /// <summary>
@@ -301,8 +292,8 @@ namespace StaticBindings {
             string type = methodInfo.ReturnType == typeof(void) ? "Set" : "Get";
             string functionName = type + methodInfo.Name;
 
-            WriteFunctionSignature(functionName, "InterpreterRuntime runtime");
-            WriteWithIndent($"if (!runtime.Pop(out {methodInfo.DeclaringType.FullName} result)");
+            WriteFunctionSignature(functionName, "InterpreterRuntime runtime, int registerIndex");
+            WriteWithIndent($"if (!runtime.GetObject(registerIndex, out {methodInfo.DeclaringType.FullName} result)");
 
             for (int i = 0; i < info.Length; i++) {
                 Write($" || !runtime.Pop(out {info[i].ParameterType.FullName} a{info.Length - i})");
@@ -340,12 +331,12 @@ namespace StaticBindings {
             string name = $"{methodInfo.GetCustomAttribute<DOMLCustomiseAttribute>()?.Name ?? methodInfo.Name}";
 
             if (type == "Get") {
-                registerCalls.Add($"InstructionRegister.RegisterGetter(\"{name}\", \"{rootNamespace}.{objectType}\", 1, {functionName});");
-                unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}\", \"{rootNamespace}.{objectType}\");");
+                registerCalls.Add($"InstructionRegister.RegisterGetter(\"{name}\", \"{objectType}\", 1, {functionName});");
+                unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}\", \"{objectType}\");");
             } else {
                 // Set
-                registerCalls.Add($"InstructionRegister.RegisterSetter(\"{name}\", \"{rootNamespace}.{objectType}\", {info.Length}, {functionName});");
-                unregisterCalls.Add($"InstructionRegister.UnRegisterSetter(\"{name}\", \"{rootNamespace}.{objectType}\");");
+                registerCalls.Add($"InstructionRegister.RegisterSetter(\"{name}\", \"{objectType}\", {info.Length}, {functionName});");
+                unregisterCalls.Add($"InstructionRegister.UnRegisterSetter(\"{name}\", \"{objectType}\");");
             }
         }
 
@@ -359,30 +350,30 @@ namespace StaticBindings {
 
             if (propertyInfo.CanRead && (propertyInfo.GetMethod?.IsPublic ?? false)) {
                 // Write Getter
-                WriteFunctionSignature($"GetProperty{propertyInfo.Name}", "InterpreterRuntime runtime");
-                WriteIndentLine($"if (!runtime.Pop(out {propertyInfo.DeclaringType.Name} result) || !runtime.Push(result.{propertyInfo.Name}, true))");
+                WriteFunctionSignature($"GetProperty{propertyInfo.Name}", "InterpreterRuntime runtime, int registerIndex");
+                WriteIndentLine($"if (!runtime.GetObject(registerIndex, out {propertyInfo.DeclaringType.Name} result) || !runtime.Push(result.{propertyInfo.Name}, true))");
                 indentLevel++;
                 WriteIndentLine($"Log.Error(\"{objectType}::{name} Getter failed\");");
                 indentLevel--;
                 CloseBrace();
 
-                registerCalls.Add($"InstructionRegister.RegisterGetter(\"{name}\", \"{rootNamespace}.{objectType}\", {1}, GetProperty{propertyInfo.Name});");
-                unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}\", \"{rootNamespace}.{objectType}\");");
+                registerCalls.Add($"InstructionRegister.RegisterGetter(\"{name}\", \"{objectType}\", {1}, GetProperty{propertyInfo.Name});");
+                unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}\", \"{objectType}\");");
             }
 
             if (propertyInfo.CanWrite && (propertyInfo.SetMethod?.IsPublic ?? false)) {
                 WriteEmptyLine();
 
                 // Write Setter
-                WriteFunctionSignature($"SetProperty{propertyInfo.Name}", "InterpreterRuntime runtime");
-                WriteIndentLine($"if (!runtime.Pop(out {propertyInfo.DeclaringType.FullName} result) || !runtime.Pop(out result.{propertyInfo.Name}))");
+                WriteFunctionSignature($"SetProperty{propertyInfo.Name}", "InterpreterRuntime runtime, int registerIndex");
+                WriteIndentLine($"if (!runtime.GetObject(registerIndex, out {propertyInfo.DeclaringType.FullName} result) || !runtime.Pop(out result.{propertyInfo.Name}))");
                 indentLevel++;
                 WriteIndentLine($"Log.Error(\"{objectType}::{name} Setter failed\");");
                 indentLevel--;
                 CloseBrace();
 
-                registerCalls.Add($"InstructionRegister.RegisterSetter(\"{name}\", \"{rootNamespace}.{objectType}\", {1}, SetProperty{propertyInfo.Name});");
-                unregisterCalls.Add($"InstructionRegister.UnRegisterSetter(\"{name}\", \"{rootNamespace}.{objectType}\");");
+                registerCalls.Add($"InstructionRegister.RegisterSetter(\"{name}\", \"{objectType}\", {1}, SetProperty{propertyInfo.Name});");
+                unregisterCalls.Add($"InstructionRegister.UnRegisterSetter(\"{name}\", \"{objectType}\");");
             }
         }
 
@@ -395,29 +386,29 @@ namespace StaticBindings {
             string name = $"{fieldInfo.GetCustomAttribute<DOMLCustomiseAttribute>()?.Name ?? fieldInfo.Name}";
 
             // Write Getter
-            WriteFunctionSignature($"GetField{name}", "InterpreterRuntime runtime");
-            WriteIndentLine($"if (!runtime.Pop(out {fieldInfo.DeclaringType.FullName} result) || !runtime.Push(result.{fieldInfo.Name}, true))");
+            WriteFunctionSignature($"GetField{name}", "InterpreterRuntime runtime, int registerIndex");
+            WriteIndentLine($"if (!runtime.GetObject(registerIndex, out {fieldInfo.DeclaringType.FullName} result) || !runtime.Push(result.{fieldInfo.Name}, true))");
             indentLevel++;
             WriteIndentLine($"Log.Error(\"{objectType}::{name} Getter failed\");");
             indentLevel--;
             CloseBrace();
 
-            registerCalls.Add($"InstructionRegister.RegisterGetter(\"{name}\", \"{rootNamespace}.{objectType}\", {1}, GetField{fieldInfo.Name});");
-            unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}\", \"{rootNamespace}.{objectType}\");");
+            registerCalls.Add($"InstructionRegister.RegisterGetter(\"{name}\", \"{objectType}\", {1}, GetField{fieldInfo.Name});");
+            unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}\", \"{objectType}\");");
 
             if (fieldInfo.IsLiteral == false && fieldInfo.IsInitOnly == false) {
                 WriteEmptyLine();
 
                 // Write Setter
-                WriteFunctionSignature($"SetField{fieldInfo.Name}", "InterpreterRuntime runtime");
-                WriteIndentLine($"if (!runtime.Pop(out {fieldInfo.DeclaringType.FullName} result) || !runtime.Pop(out result.{fieldInfo.Name}))");
+                WriteFunctionSignature($"SetField{fieldInfo.Name}", "InterpreterRuntime runtime, int registerIndex");
+                WriteIndentLine($"if (!runtime.GetObject(registerIndex, out {fieldInfo.DeclaringType.FullName} result) || !runtime.Pop(out result.{fieldInfo.Name}))");
                 indentLevel++;
                 WriteIndentLine($"Log.Error(\"{objectType}::{name} Setter failed\");");
                 indentLevel--;
                 CloseBrace();
 
-                registerCalls.Add($"InstructionRegister.RegisterSetter(\"{name}\", \"{rootNamespace}.{objectType}\", {1}, SetField{fieldInfo.Name});");
-                unregisterCalls.Add($"InstructionRegister.UnRegisterSetter(\"{name}\", \"{rootNamespace}.{objectType}\");");
+                registerCalls.Add($"InstructionRegister.RegisterSetter(\"{name}\", \"{objectType}\", {1}, SetField{fieldInfo.Name});");
+                unregisterCalls.Add($"InstructionRegister.UnRegisterSetter(\"{name}\", \"{objectType}\");");
             }
         }
     }

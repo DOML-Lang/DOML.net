@@ -50,27 +50,27 @@ namespace DOML.Test {
                 RunParseTest(new StreamReader(new FileStream(filepath, FileMode.Open)), iterations, true);
 
                 if (options.HasFlag(Config.EMIT)) {
-                    RunEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
+                    //            RunEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
                 }
 
                 if (options.HasFlag(Config.EMIT_COMMENT)) {
-                    RunEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
+                    //             RunEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
                 }
 
                 if (options.HasFlag(Config.READ_EMIT)) {
-                    RunReadEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
+                    //             RunReadEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
                 }
 
                 if (options.HasFlag(Config.READ_EMIT_COMMENT)) {
-                    RunReadEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
+                    //             RunReadEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
                 }
 
                 if (options.HasFlag(Config.EXECUTE)) {
-                    RunExecuteTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
+                    //             RunExecuteTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
                 }
 
                 if (options.HasFlag(Config.SAFE_EXECUTE)) {
-                    RunExecuteTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
+                    //               RunExecuteTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
                 }
             }
 
@@ -79,27 +79,27 @@ namespace DOML.Test {
             RunParseTest(new StreamReader(new FileStream(filepath, FileMode.Open)), iterations, true);
 
             if (options.HasFlag(Config.EMIT)) {
-                RunEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
+                //          RunEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
             }
 
             if (options.HasFlag(Config.EMIT_COMMENT)) {
-                RunEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
+                //          RunEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
             }
 
             if (options.HasFlag(Config.READ_EMIT)) {
-                RunReadEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
+                //        RunReadEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
             }
 
             if (options.HasFlag(Config.READ_EMIT_COMMENT)) {
-                RunReadEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
+                //          RunReadEmitTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
             }
 
             if (options.HasFlag(Config.EXECUTE)) {
-                RunExecuteTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
+                //          RunExecuteTest(Parser.GetInterpreterFromPath(filepath), iterations, true, false);
             }
 
             if (options.HasFlag(Config.SAFE_EXECUTE)) {
-                RunExecuteTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
+                //           RunExecuteTest(Parser.GetInterpreterFromPath(filepath), iterations, true, true);
             }
         }
 
@@ -117,27 +117,27 @@ namespace DOML.Test {
                 RunParseTest(new StringReader(text), iterations, true);
 
                 if (options.HasFlag(Config.EMIT)) {
-                    RunEmitTest(Parser.GetInterpreterFromText(text), iterations, true, false);
+                    //           RunEmitTest(Parser.GetInterpreterFromText(text), iterations, true, false);
                 }
 
                 if (options.HasFlag(Config.EMIT_COMMENT)) {
-                    RunEmitTest(Parser.GetInterpreterFromText(text), iterations, true, true);
+                    //         RunEmitTest(Parser.GetInterpreterFromText(text), iterations, true, true);
                 }
 
                 if (options.HasFlag(Config.READ_EMIT)) {
-                    RunReadEmitTest(Parser.GetInterpreterFromText(text), iterations, true, false);
+                    ///          RunReadEmitTest(Parser.GetInterpreterFromText(text), iterations, true, false);
                 }
 
                 if (options.HasFlag(Config.READ_EMIT_COMMENT)) {
-                    RunReadEmitTest(Parser.GetInterpreterFromText(text), iterations, true, true);
+                    //           RunReadEmitTest(Parser.GetInterpreterFromText(text), iterations, true, true);
                 }
 
                 if (options.HasFlag(Config.EXECUTE)) {
-                    RunExecuteTest(Parser.GetInterpreterFromText(text), iterations, true, false);
+                    //           RunExecuteTest(Parser.GetInterpreterFromText(text), iterations, true, false);
                 }
 
                 if (options.HasFlag(Config.SAFE_EXECUTE)) {
-                    RunExecuteTest(Parser.GetInterpreterFromText(text), iterations, true, true);
+                    //         RunExecuteTest(Parser.GetInterpreterFromText(text), iterations, true, true);
                 }
             }
 
@@ -146,27 +146,27 @@ namespace DOML.Test {
             RunParseTest(new StringReader(text), iterations, false);
 
             if (options.HasFlag(Config.EMIT)) {
-                RunEmitTest(Parser.GetInterpreterFromText(text), iterations, false, false);
+                //     RunEmitTest(Parser.GetInterpreterFromText(text), iterations, false, false);
             }
 
             if (options.HasFlag(Config.EMIT_COMMENT)) {
-                RunEmitTest(Parser.GetInterpreterFromText(text), iterations, false, true);
+                //        RunEmitTest(Parser.GetInterpreterFromText(text), iterations, false, true);
             }
 
             if (options.HasFlag(Config.READ_EMIT)) {
-                RunReadEmitTest(Parser.GetInterpreterFromText(text), iterations, false, false);
+                //         RunReadEmitTest(Parser.GetInterpreterFromText(text), iterations, false, false);
             }
 
             if (options.HasFlag(Config.READ_EMIT_COMMENT)) {
-                RunReadEmitTest(Parser.GetInterpreterFromText(text), iterations, false, true);
+                //           RunReadEmitTest(Parser.GetInterpreterFromText(text), iterations, false, true);
             }
 
             if (options.HasFlag(Config.EXECUTE)) {
-                RunExecuteTest(Parser.GetInterpreterFromText(text), iterations, false, false);
+                //           RunExecuteTest(Parser.GetInterpreterFromText(text), iterations, false, false);
             }
 
             if (options.HasFlag(Config.SAFE_EXECUTE)) {
-                RunExecuteTest(Parser.GetInterpreterFromText(text), iterations, false, true);
+                //    RunExecuteTest(Parser.GetInterpreterFromText(text), iterations, false, true);
             }
         }
 
@@ -182,9 +182,9 @@ namespace DOML.Test {
 
             for (int i = 0; i < iterations; i++) {
                 stopwatch.Restart();
-                Interpreter interpreter = Parser.GetInterpreter(reader);
+                // Interpreter interpreter = Parser.GetInterpreter(reader);
                 stopwatch.Stop();
-                interpreter.HandleSafeInstruction(new Instruction(Opcodes.NOP, ""));
+                //interpreter.HandleSafeInstruction(new Instruction(Opcodes.NOP, ""));
 
                 if (throwOut == false) {
                     total += 1000 * stopwatch.ElapsedTicks;
@@ -248,7 +248,7 @@ namespace DOML.Test {
 
                 for (int i = 0; i < iterations; i++) {
                     stopwatch.Restart();
-                    Parser.GetInterpreterFromText(builder.ToString(), Parser.ReadMode.IR);
+                    //.GetInterpreterFromText(builder.ToString(), Parser.ReadMode.IR);
                     stopwatch.Stop();
                     if (throwOut == false) {
                         total += stopwatch.ElapsedMilliseconds;

@@ -12,28 +12,6 @@ using System.Collections.Generic;
 using DOML.Logger;
 
 namespace DOML.IR {
-    // For later expansion?
-    using DEC = Decimal;
-    using BOOL = Boolean;
-    using STR = String;
-
-#if (BYTE_TYPES || SMALL_TYPES || MED_TYPES)
-    using FLOAT = Single;
-#else
-    // To expand if we support 16 bit/128/...
-    using FLOAT = Double;
-#endif
-
-#if BYTE_TYPES
-    using INT = Int8;
-#elif SMALL_TYPES
-    using INT = Int16;
-#elif MED_TYPES
-    using INT = Int32;
-#else
-    using INT = Int64;
-#endif
-
     /// <summary>
     /// Opcodes for DOML IR.
     /// </summary>
@@ -65,7 +43,7 @@ namespace DOML.IR {
         #endregion
         #region STACK
         /// <summary>
-        /// `new_obj(object: Type, constructor: Fn, register: int, count: int, parameters: object[count])`
+        /// `new_obj(object: Type, constructor: Fn, register: int, count: int)`
         /// Creates a new object with an applied constructor call.
         /// </summary>
         NEW_OBJ = 10,
@@ -84,8 +62,10 @@ namespace DOML.IR {
         #region QUICK_STACK
         QUICK_PUSH = 20,
         QUICK_CALL = 21,
-        P_CALL = 22, // NOT CONFIRMED
-        DUMB_GET = 24,
+        P_CALL = 22, // UNCONFIRMED
+        P_NEW_OBJ = 23, // UNCONFIRMED
+        QUICK_GET = 24,
+        DUMB_GET = 25,
         #endregion
         #region ARRAY
         PUSH_ARRAY = 30,
@@ -110,7 +90,7 @@ namespace DOML.IR {
     /// The interpreter for DOML IR.
     /// This handles executing the opcodes.
     /// </summary>
-    public partial class Interpreter {
+    public class Interpreter {
         /// <summary>
         /// All the instructions to execute.
         /// </summary>
@@ -140,10 +120,11 @@ namespace DOML.IR {
             Runtime.ClearSpace();
 
             for (int i = 0; i < Instructions.Count; i++) {
-                if (safe)
+                if (safe) {
                     HandleSafeInstruction(Instructions[i]);
-                else
+                } else {
                     HandleUnsafeInstruction(Instructions[i]);
+                }
             }
         }
 
@@ -154,13 +135,98 @@ namespace DOML.IR {
         public void HandleSafeInstruction(Instruction instruction) {
             switch ((Opcodes)instruction.OpCode) {
                 #region System Instructions
-                case Opcodes.INIT: {
-                    INT regValue = (INT)instruction.Parameters[0];
+                case Opcodes.NOP:
                     break;
-                }
+                case Opcodes.INIT: {
+                        int stackSize = (int)instruction.Parameters[0];
+                        int regSize = (int)instruction.Parameters[1];
+                        Runtime.ReserveRegister(regSize);
+                        Runtime.ReserveSpace(stackSize);
+                        break;
+                    }
+                case Opcodes.DE_INIT:
+                    Runtime.ClearRegisters();
+                    Runtime.ClearSpace();
+                    break;
+                case Opcodes.CREATE_TYPE:
+                    // @TODO: Support complex types
+                    throw new NotImplementedException();
+                    break;
+                #endregion
+                #region Push Instructions
+                case Opcodes.NEW_OBJ: {
+                        string type = (string)instruction.Parameters[0];
+                        string constructor = (string)instruction.Parameters[1];
+                        int register = (int)instruction.Parameters[2];
+                        // @TODO: Possibly not needed?
+                        int count = (int)instruction.Parameters[3];
+                        if (Runtime.CurrentStackSize < count) {
+                            Log.Error("Invalid Stack Size");
+                            return;
+                        }
+
+
+                        break;
+                    }
+                case Opcodes.PUSH:
+                    break;
+                case Opcodes.CALL_N:
+                    break;
+                case Opcodes.CALL_STACK:
+                    break;
+                case Opcodes.POP:
+                    break;
+                case Opcodes.GET_N:
+                    break;
+                case Opcodes.GET_STACK:
+                    break;
+                #endregion
+                #region Quick Instructions
+                case Opcodes.QUICK_PUSH:
+                    break;
+                case Opcodes.QUICK_CALL:
+                    break;
+                case Opcodes.P_CALL:
+                    break;
+                case Opcodes.P_NEW_OBJ:
+                    break;
+                case Opcodes.QUICK_GET:
+                    break;
+                case Opcodes.DUMB_GET:
+                    break;
+                #endregion
+                #region Array Instructions
+                case Opcodes.PUSH_ARRAY:
+                    break;
+                case Opcodes.SET_ARRAY:
+                    break;
+                case Opcodes.GET_ARRAY:
+                    break;
+                case Opcodes.ARRAY_CPY:
+                    break;
+                case Opcodes.COMPACT:
+                    break;
+                #endregion
+                #region Map Instructions
+                case Opcodes.PUSH_MAP:
+                    break;
+                case Opcodes.PUSH_COLLECTION:
+                    break;
+                case Opcodes.SET_MAP:
+                    break;
+                case Opcodes.SET_COLLECTION:
+                    break;
+                case Opcodes.QUICK_SET_MAP:
+                    break;
+                case Opcodes.ZIP_MAP:
+                    break;
+                case Opcodes.GET_MAP:
+                    break;
+                case Opcodes.GET_COLLECTION:
+                    break;
                 #endregion
                 default:
-                throw new NotImplementedException("Option not implemented");
+                    throw new NotImplementedException("Option not implemented");
             }
         }
 
@@ -174,7 +240,7 @@ namespace DOML.IR {
 
                 #endregion
                 default:
-                throw new NotImplementedException("Option not implemented");
+                    throw new NotImplementedException("Option not implemented");
             }
         }
     }

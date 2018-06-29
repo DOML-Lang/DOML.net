@@ -139,6 +139,16 @@ namespace DOML.IR {
             }
         }
 
+        public bool GetObject<T>(int index, out T obj) {
+            if (index < RegisterSize && objectRegisters[index] != null) {
+                obj = (T)objectRegisters[index];
+                return true;
+            } else {
+                obj = default(T);
+                return false;
+            }
+        }
+
         /// <summary>
         /// Get an object at an index.
         /// Indexes the object register array with the index provided.
@@ -387,21 +397,6 @@ namespace DOML.IR {
             } else {
                 return false;
             }
-        }
-
-        /// <summary>
-        /// Gets the system ready to make a vector.
-        /// </summary>
-        /// <param name="count"> The size of the vector. </param>
-        /// <returns> If the vector can be created (count > 1). </returns>
-        public bool MakeVector(int count) {
-            if (count > 1) {
-                collectionCount = count;
-                // This will stop the system from doubling up the lists
-                Unsafe_Push<object>(false);
-                return true;
-            }
-            return false;
         }
 
         /// <summary>

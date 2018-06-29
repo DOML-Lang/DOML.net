@@ -7,6 +7,8 @@
 // ====================================================
 #endregion
 
+// @BUG: Currently minimum for objects is '6' for no real reason?
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -62,14 +64,14 @@ namespace DOML {
         private ObjectNode currentVariable;
 
         /// <summary>
-        /// The next register to use.
+        /// Registers to use.
         /// </summary>
-        private int nextRegister;
+        private int registers = 0;
 
         /// <summary>
         /// The maximum amount of spaces this script uses.
         /// </summary>
-        private int maxSpaces;
+        private int maxSpaces = 0;
 
         /// <summary>
         /// Inside a block.
@@ -200,9 +202,9 @@ namespace DOML {
         public TopLevelNode ParseAST(TextReader reader) {
             List<BaseNode> children = new List<BaseNode>();
             bool success = true;
+            Advance(reader, 1);
             while (true) {
                 int oldLine = currentLine;
-
                 // Remove whitespace/comments before first line
                 if (!ParseComments(reader)) return null;
                 if (reader.Peek() < 0) break;
@@ -234,10 +236,21 @@ namespace DOML {
                         break;
                     }
                     children.Add(node);
+                } else {
+                    BaseNode node = ParseObject(reader);
+                    if (node == null) {
+                        if (currentCharacter != '.' || reader.Peek() != '{' || !inBlock) {
+                            return null;
+                        } else {
+                            Advance(reader, 2);
+                        }
+                    } else {
+                        children.Add(node);
+                    }
                 }
             }
 
-            return new TopLevelNode() { children = children.ToArray(), errorOccurred = !success };
+            return new TopLevelNode(children.ToArray(), !success, registers, maxSpaces);
         }
 
         private MacroNode ParseMacro(TextReader reader) {
@@ -263,6 +276,7 @@ namespace DOML {
             Advance(reader);
             IgnoreWhitespace(reader);
             List<BaseNode> node = ParseArgList(reader);
+            if (node == null) return null;
             return new FunctionNode() { args = node.Select(x => new ArgumentNode() { name = null, value = x }).ToArray(), name = name, obj = obj, type = FunctionType.SETTER };
         }
 
@@ -271,32 +285,60 @@ namespace DOML {
         }
 
         // Returns true if value was properly passed else false if another thing was parsed
-        private BaseNode ParseValue(TextReader reader) {
+        private BaseNode ParseValue(TextReader reader, ref int count, bool possibleFuncArg = false) {
+            count++;
             if (currentCharacter == '[') {
-                // Array
-                Advance(reader);
-                IgnoreWhitespace(reader);
-                if (currentCharacter == ']') {
+                ArrayNode values = new ArrayNode();
+                while (currentCharacter != ']' && Advance(reader)) {
+                    IgnoreWhitespace(reader);
+                    BaseNode node = ParseValue(reader, ref count);
+                    if (node == null || node is ReserveNode) return null; // Error occurred
+                    values.values.Add(node);
+                    IgnoreWhitespace(reader);
+                    if (currentCharacter != ',' && currentCharacter != ']') {
+                        LogError("Missing ',' or ']'");
+                        return null;
+                    }
+                }
+
+                if (values.values.Count == 0) {
                     // empty array
                     LogError("Can't have empty array, use null instead");
                     return null;
                 }
 
-                // @TODO array
-            } else if (char.IsDigit(currentCharacter)) {
-                // number
-                StringBuilder builder = new StringBuilder();
-                while (IsEndingChar(currentCharacter)) {
-                    builder.Append(currentCharacter);
-                }
-
-                // @TODO: confirm it supports hex, oct and bin
-                if (builder.Length == 0 || !long.TryParse(builder.ToString(), out long result)) {
-                    LogError("Invalid decimal");
+                if (currentCharacter != ']') {
+                    LogError("Missing ']' character.");
                     return null;
                 }
 
-                return new ValueNode() { obj = result };
+                Advance(reader);
+                return values;
+            } else if (char.IsDigit(currentCharacter)) {
+                // number
+                StringBuilder builder = new StringBuilder();
+                bool flt = false;
+                while (!IsEndingChar(currentCharacter)) {
+                    builder.Append(currentCharacter);
+                    if (currentCharacter == '.' || currentCharacter == 'e' || currentCharacter == 'E') flt = true;
+                    Advance(reader);
+                }
+
+                if (flt) {
+                    // @TODO: confirm it supports hex, oct and bin
+                    if (builder.Length == 0 || !double.TryParse(builder.ToString(), out double result)) {
+                        LogError("Invalid double: " + builder.ToString());
+                        return null;
+                    }
+                    return new ValueNode() { obj = result };
+                } else {
+                    // @TODO: confirm it supports hex, oct and bin
+                    if (builder.Length == 0 || !long.TryParse(builder.ToString(), out long result)) {
+                        LogError("Invalid integer: " + builder.ToString());
+                        return null;
+                    }
+                    return new ValueNode() { obj = result };
+                }
             } else if (currentCharacter == '$') {
                 // decimal
                 // Read till space or comma or newline or semicolon or parenthesis ending or bracket ending or brace ending
@@ -307,7 +349,7 @@ namespace DOML {
                 }
 
                 if (builder.Length == 0 || !decimal.TryParse(builder.ToString(), out decimal result)) {
-                    LogError("Invalid decimal");
+                    LogError("Invalid decimal: " + builder.ToString());
                     return null;
                 }
 
@@ -315,10 +357,9 @@ namespace DOML {
             } else if (currentCharacter == '"') {
                 // string
                 // go till terminating
-                Advance(reader);
                 StringBuilder builder = new StringBuilder();
                 bool escaped = false;
-                while ((currentCharacter != '"' || escaped) && Advance(reader)) {
+                while (Advance(reader) && (currentCharacter != '"' || escaped)) {
                     if (currentCharacter == '\\') {
                         escaped = true;
                     } else {
@@ -332,23 +373,31 @@ namespace DOML {
                     LogError("Missing terminating '\"'");
                     return null;
                 }
+                Advance(reader);
                 return new ValueNode() { obj = builder.ToString() };
             } else {
                 // @TODO: support #NoKeywords
                 // Could be boolean, object or null
                 // Parse till ',' ']' ')' or an invalid
                 StringBuilder identifier = new StringBuilder();
-                while (Advance(reader)) {
-                    if (char.IsLetter(currentCharacter)) {
-                        identifier.Append(currentCharacter);
-                    } else {
-                        break;
-                    }
-                }
+                do {
+                    identifier.Append(currentCharacter);
+                } while (Advance(reader) && char.IsLetter(currentCharacter));
 
                 if (currentCharacter != '.') {
                     IgnoreWhitespace(reader);
-                    if (currentCharacter == ':' || currentCharacter == '=') return null;
+                    if (currentCharacter == ':') {
+                        // Not necessarily a syntax error
+                        if (possibleFuncArg) {
+                            return new ReserveNode() { data = identifier.ToString() };
+                        } else {
+                            LogError("Syntax error");
+                            return null;
+                        }
+                    } else if (currentCharacter == '=') {
+                        LogError("Syntax error");
+                        return null;
+                    }
                 }
 
                 string value = identifier.ToString();
@@ -383,45 +432,174 @@ namespace DOML {
 
                 string funcName = identifier.ToString();
 
+                List<ArgumentNode> list = new List<ArgumentNode>();
                 if (currentCharacter == '(') {
                     // Parse function list
-                    return ParseFuncArgList(reader, value, funcName);
+                    list = ParseFuncArgList(reader, ref count);
+                    if (list == null) {
+                        return null;
+                    }
                 }
 
-                return new FunctionNode() { args = new ArgumentNode[0], name = funcName, obj = Registers[value] };
+                return new FunctionNode() { args = list.ToArray(), name = funcName, obj = Registers[value] };
             }
         }
 
-        private FunctionNode ParseFuncArgList(TextReader reader, string objName = null, string funcName = null) {
+        private List<ArgumentNode> ParseFuncArgList(TextReader reader, ref int count) {
+            if (currentCharacter != '(') {
+                LogError("Invalid Syntax");
+                return null;
+            }
 
+            Advance(reader);
+            List<ArgumentNode> arguments = new List<ArgumentNode>();
+
+            if (currentCharacter == ')') {
+                // Empty
+                return arguments;
+            }
+
+            do {
+                IgnoreWhitespace(reader);
+                BaseNode value = ParseValue(reader, ref count, true);
+                if (value == null) return null;
+                if (value is ReserveNode) {
+                    // Is a 'type'
+                    if (currentCharacter != ':') {
+                        LogError("Internal error expected ':'");
+                        return null;
+                    }
+
+                    Advance(reader);
+                    IgnoreWhitespace(reader);
+                    // Parse actual value
+                    string arg = (string)((ReserveNode)value).data;
+                    value = ParseValue(reader, ref count);
+                    if (value == null) return null;
+                    arguments.Add(new ArgumentNode() { name = arg, value = value });
+                } else {
+                    arguments.Add(new ArgumentNode() { name = null, value = value });
+                }
+            } while (currentCharacter != ')' && currentCharacter == ',' && Advance(reader));
+
+            if (currentCharacter != ')') {
+                LogError("Syntax Error");
+                return null;
+            }
+            Advance(reader);
+            return arguments;
         }
 
-        private ObjectNode ParseObject(TextReader reader, string withName = null, string withType = null) {
+        private BaseNode ParseObject(TextReader reader) {
+            // Grab name, then check ':'
+            StringBuilder name = ParseIdentifier(reader, "", false);
 
+            if (currentCharacter == '.') {
+                if (reader.Peek() == '{') {
+                    string objName = name.ToString();
+                    if (!Registers.ContainsKey(objName)) {
+                        LogError($"Object doesn't exist {objName}");
+                        return null;
+                    }
+                    currentVariable = Registers[objName];
+                    inBlock = true;
+                    return null;
+                }
+
+                // An assignment
+                Advance(reader);
+                string obj = name.ToString();
+                if (!Registers.ContainsKey(obj)) {
+                    LogError($"Object doesn't exist {obj}");
+                    return null;
+                }
+                return ParseAssignment(reader, Registers[obj]);
+            } else {
+                IgnoreWhitespace(reader);
+                if (currentCharacter != ':') {
+                    if (currentCharacter == '=') {
+                        LogError("Probably have to handle this better");
+                    }
+                    LogError("Syntax error");
+                    return null;
+                }
+
+                Advance(reader);
+                IgnoreWhitespace(reader);
+                StringBuilder type = ParseIdentifier(reader, "", false);
+                ObjectNode objectNode;
+                string objName = name.ToString();
+                string typeName = type.ToString();
+                if (currentCharacter == ':') {
+                    Advance(reader);
+                    if (currentCharacter != ':') {
+                        LogError("Syntax error");
+                    }
+
+                    Advance(reader);
+                    string functionName;
+                    if (currentCharacter == '(') {
+                        // Empty
+                        Advance(reader);
+                        functionName = objName;
+                    } else {
+                        functionName = ParseIdentifier(reader, "", false).ToString();
+                    }
+
+                    int count = 0;
+                    List<ArgumentNode> args = ParseFuncArgList(reader, ref count);
+                    if (count > maxSpaces) maxSpaces = count;
+                    if (args == null) return null;
+                    objectNode = new ObjectNode() { name = objName, type = typeName, constructor = new FunctionNode() { name = functionName, type = FunctionType.CONSTRUCTOR, args = args.ToArray() } };
+                } else {
+                    objectNode = new ObjectNode() { name = objName, type = typeName, constructor = new FunctionNode() { name = typeName, type = FunctionType.CONSTRUCTOR, args = new ArgumentNode[0] } };
+                }
+                registers++;
+                objectNode.constructor.obj = objectNode;
+                Registers.Add(objName, objectNode);
+                IgnoreWhitespace(reader);
+                if (currentCharacter == '{') {
+                    inBlock = true;
+                    currentVariable = objectNode;
+                    Advance(reader);
+                }
+                return objectNode;
+            }
         }
 
         private List<BaseNode> ParseArgList(TextReader reader) {
             // Parse each arg, sometimes we may think there could be another node and may be wrong
             // in that case we'll handle it gracefully often emulating a parse assignment as well, thus the return type.
             // The first one will be a function node though.
+            int count = 0;
             FunctionNode node = new FunctionNode();
             List<BaseNode> values = new List<BaseNode>(3);
-            BaseNode next = ParseValue(reader);
-            if (next == null) {
+            BaseNode next = ParseValue(reader, ref count);
+            if (next == null || next is ReserveNode) {
                 LogError("Can't have any empty arg list");
                 return null;
             }
+            values.Add(next);
+
+            IgnoreWhitespace(reader);
+            if (currentCharacter == ',') {
+                Advance(reader);
+            } else {
+                return values;
+            }
+            IgnoreWhitespace(reader);
 
             while (next != null) {
+                next = ParseValue(reader, ref count);
+                if (next == null || next is ReserveNode) return null;
                 values.Add(next);
-                next = ParseValue(reader);
-                if (next == null) return null;
-
                 IgnoreWhitespace(reader);
                 if (currentCharacter != ',') break;
                 Advance(reader); // skip ','
                 IgnoreWhitespace(reader);
             }
+
+            if (count > maxSpaces) maxSpaces = count;
 
             return values;
         }
@@ -438,7 +616,7 @@ namespace DOML {
             StringBuilder str = new StringBuilder(prefix);
             str.Append(currentCharacter);
             while (Advance(reader)) {
-                if (currentCharacter == '=' || currentCharacter == ':' || char.IsWhiteSpace(currentCharacter) || (!allowDot && currentCharacter == '.')) {
+                if (currentCharacter == '=' || currentCharacter == '(' || currentCharacter == ':' || char.IsWhiteSpace(currentCharacter) || (!allowDot && currentCharacter == '.')) {
                     break;
                 } else if (!char.IsLetter(currentCharacter) && currentCharacter != '_' && (allowDot && currentCharacter != '.')) {
                     // Invalid character
@@ -475,9 +653,9 @@ namespace DOML {
                         blockCommentNesting++;
                         Advance(reader); // consume '*'
                     } else if (next == '/' && blockCommentNesting == 0) {
-                        Advance(reader, 2);
+                        AdvanceLine(reader);
                     }
-                } else if (char.IsWhiteSpace(currentCharacter) == false) {
+                } else if (char.IsWhiteSpace(currentCharacter) == false && blockCommentNesting == 0) {
                     // We don't need to check the last condition since we know that blockCommentNesting <= 0
                     // If it is < 0 then we check that on that spot rather than towards end.
                     return true;
