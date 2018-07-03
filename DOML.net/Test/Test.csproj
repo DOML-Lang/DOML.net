@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp2.1</TargetFramework>
+    <TargetFramework>netcoreapp1.1</TargetFramework>
     <StartupObject>Test.UnitTests.Program</StartupObject>
     <Configurations>Debug;Release;Test</Configurations>
     <ApplicationIcon />
@@ -26,10 +26,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="StaticBindings\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.10.9" />
   </ItemGroup>
 
@@ -40,6 +36,10 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
+    <Compile Remove="StaticBindings\StaticBinding-Test.UnitTests.Color.cs" />
     <Compile Remove="test.Designer.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="StaticBindings\" />
   </ItemGroup>
 </Project>

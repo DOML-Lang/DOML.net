@@ -47,6 +47,11 @@ namespace DOML.IR {
         private object[] stack = new object[0];
 
         /// <summary>
+        /// This is useful for calling on the stack, as this will be returned when you get register with an index of -1.
+        /// </summary>
+        private object offRegister;
+
+        /// <summary>
         /// The current stack pointer, representing what element is the top of the stack.
         /// A value of <code>-1</code> represents that the stack has no elements and a value equal to <see cref="MaxStackSize"/><code> - 1</code> means the stack is full.
         /// </summary>
@@ -80,11 +85,6 @@ namespace DOML.IR {
         /// Equal to <c>objectRegisters.Length</c>.
         /// </remarks>
         public int RegisterSize => objectRegisters.Length;
-
-        /// <summary>
-        /// How much vector space left.
-        /// </summary>
-        private int collectionCount;
 
         /// <summary>
         /// Clears the stack array.
@@ -139,9 +139,26 @@ namespace DOML.IR {
             }
         }
 
+        /// <summary>
+        /// Gets an object at an index.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="index"></param>
+        /// <param name="obj"></param>
+        /// <returns></returns>
         public bool GetObject<T>(int index, out T obj) {
-            if (index < RegisterSize && objectRegisters[index] != null) {
-                obj = (T)objectRegisters[index];
+            if (index == -1) {
+                if (offRegister == null) {
+                    obj = default(T);
+                    return false;
+                } else {
+                    obj = (T)offRegister;
+                    return true;
+                }
+            }
+
+            if (index < RegisterSize && index >= 0 && objectRegisters[index] != null) {
+                obj = (T)Unsafe_GetObject(index);
                 return true;
             } else {
                 obj = default(T);
@@ -156,15 +173,7 @@ namespace DOML.IR {
         /// <param name="index"> The index of the object. </param>
         /// <param name="obj"> The object at that index. </param>
         /// <returns> If there exists an object at that index. </returns>
-        public bool GetObject(int index, out object obj) {
-            if (index < RegisterSize && objectRegisters[index] != null) {
-                obj = objectRegisters[index];
-                return true;
-            } else {
-                obj = null;
-                return false;
-            }
-        }
+        public bool GetObject(int index, out object obj) => GetObject(index, out obj);
 
         /// <summary>
         /// Set an object at an index.
@@ -175,7 +184,7 @@ namespace DOML.IR {
         /// <returns> If the passesd object isn't null and there is space. </returns>
         public bool SetObject(object obj, int index) {
             if (index < RegisterSize && obj != null) {
-                objectRegisters[index] = obj;
+                Unsafe_SetObject(obj, index);
                 return true;
             } else {
                 return false;
@@ -191,7 +200,7 @@ namespace DOML.IR {
         /// <returns> If <paramref name="index"/> <see cref="RegisterSize"/>. </returns>
         public bool RemoveObject(int index) {
             if (index < RegisterSize) {
-                objectRegisters[index] = null;
+                Unsafe_RemoveObject(index);
                 return false;
             } else {
                 return false;
@@ -206,36 +215,6 @@ namespace DOML.IR {
         /// <param name="resizeIfNoSpace"> If there is no space then resize the stack and copy values over. </param>
         /// <returns> True if value could be pushed onto stack. </returns>
         public bool Push<T>(T value, bool resizeIfNoSpace) {
-            if (collectionCount > 0) {
-                if (TopIsOfType<T[]>(out bool result)) {
-                    if (result == false) {
-                        PushVector<T>(collectionCount);
-                    }
-                } else {
-                    // This means that TopIsOfType FAILS
-                    // not that it isn't IList, it fails if there is no object to check.
-                    return false;
-                }
-
-                if (typeof(T) == typeof(object)) {
-                    if (Peek(out IList vec)) {
-                        Type generic = vec.GetType().GetGenericTypeDefinition().GenericTypeArguments[0];
-                        if (generic == typeof(object) || value.GetType() == generic) {
-                            vec[vec.Count - collectionCount] = value;
-                            collectionCount--;
-                        }
-                    }
-                } else {
-                    // No need for type check since peek will automatically do that for us
-                    if (Peek(out T[] vec)) {
-                        vec[vec.Length - collectionCount] = value;
-                        collectionCount--;
-                        return true;
-                    }
-                }
-                return false;
-            }
-
             /* No need to check for > since it only ever increases by one and you can't directly change the index
              * Without pushing/popping therefore if somehow it does occur then that's a runtime error that we want.
              */
@@ -430,6 +409,7 @@ namespace DOML.IR {
         /// <returns> The object. </returns>
         /// <remarks> Will throw a bunch of errors if you do something badly wrong. </remarks>
         public object Unsafe_GetObject(int index) {
+            if (index == -1) return offRegister;
             return objectRegisters[index];
         }
 
@@ -473,13 +453,6 @@ namespace DOML.IR {
         /// <param name="value"> The value to push. </param>
         /// <remarks> Will throw a bunch of errors if you do something badly wrong. </remarks>
         public void Unsafe_Push<T>(T value) {
-            if (collectionCount > 0) {
-                T[] array = Unsafe_Peek<T[]>();
-                array[array.Length - collectionCount] = value;
-                collectionCount--;
-                return;
-            }
-
             stack[++stackPtr] = value;
         }
 
@@ -516,6 +489,14 @@ namespace DOML.IR {
             T temp = Unsafe_Peek<T>();
             stack[stackPtr--] = null;
             return temp;
+        }
+
+        /// <summary>
+        /// Unsafely sets the stack pointer.
+        /// </summary>
+        /// <param name="newPtr"> The new pointer value. </param>
+        public void Unsafe_SetStackPtr(int newPtr) {
+            stackPtr = newPtr;
         }
 
         /// <summary>

@@ -43,7 +43,7 @@ Frequency=3222670 Hz, Resolution=310.3017 ns, Timer=TSC
 	- With comments is significantly slower due to the string manipulation that occurs, this could be optimised quite signficantly
 	- Emission in general could also be optimised, but I'm more focusing on the reading currently
 - Execution is 2.3us in unsafe mode, and 3.6us in safe mode.
-	- Thus Execution is is around 1.5x slower when using safe mode.
+	- Thus Execution is is around 35% slower when using safe mode.
 	- Doubt it can be optimised too much more, due to the nature of it being relatively simple, though perhaps a nicer branching system could benefit the code.
 - Reading IR without comments is around 7.2us and with comments is 5.7us
 	- The difference can be attributed to the fact that reading without reads the entire line in, and that is less optimised then reading multiple lines, due to the fact it indexes and substrings from that; it also could be attributed to the memory cost associated, and the resulting cache misses.

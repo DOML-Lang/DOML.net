@@ -217,8 +217,7 @@ namespace DOML.AST {
         }
     }
 
-    // Another abstract???
-    public sealed class MacroNode : BaseNode {
+    public class MacroNode : BaseNode {
         public override void BasicCodegen(TextWriter writer, bool simple) {
             throw new NotImplementedException();
         }

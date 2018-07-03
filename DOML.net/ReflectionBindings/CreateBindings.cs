@@ -9,6 +9,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using DOML.IR;
 using DOML.Logger;
@@ -61,41 +62,42 @@ namespace ReflectionBindings {
                     Log.Error($"{forClass.Name} Constructor failed");
                 };
 
-                InstructionRegister.RegisterConstructor($"{forClass.Name}", action);
+                InstructionRegister.RegisterConstructor($"{forClass.Name}", action,
+                    parameterInfo.Select(x => InstructionRegister.GetParamType(x.ParameterType)).ToArray());
             }
 
             foreach (FieldInfo info in fieldInfo) {
                 FieldInfo copyInfo = info;
-                InstructionRegister.RegisterGetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime, int registerIndex) => {
+                InstructionRegister.RegisterGetter(copyInfo.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
                     if (!runtime.GetObject(registerIndex, out object result) || !runtime.Push(copyInfo.GetValue(result), true))
                         Log.Error($"{forClass.Name}::{info.Name} Getter Failed");
-                });
+                }, new ParamType[0]);
 
-                InstructionRegister.RegisterSetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime, int registerIndex) => {
+                InstructionRegister.RegisterSetter(copyInfo.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
                     if (!runtime.GetObject(registerIndex, out object result) || !runtime.Pop(out object valueToSet))
                         Log.Error($"{forClass.Name}::{info.Name} Setter Failed");
                     else
                         info.SetValue(result, valueToSet);
-                });
+                }, new ParamType[0]);
             }
 
             foreach (PropertyInfo info in propertyInfo) {
                 PropertyInfo copyInfo = info;
 
                 if (info.CanRead && (info.GetMethod?.IsPublic ?? false)) {
-                    InstructionRegister.RegisterGetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime, int registerIndex) => {
+                    InstructionRegister.RegisterGetter(copyInfo.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
                         if (!runtime.GetObject(registerIndex, out object result) || !runtime.Push(copyInfo.GetValue(result), true))
                             Log.Error($"{forClass.Name}::{info.Name} Getter Failed");
-                    });
+                    }, new ParamType[0]);
                 }
 
                 if (info.CanWrite && (info.SetMethod?.IsPublic ?? false)) {
-                    InstructionRegister.RegisterSetter(copyInfo.Name, forClass.Name, 1, (InterpreterRuntime runtime, int registerIndex) => {
+                    InstructionRegister.RegisterSetter(copyInfo.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
                         if (!runtime.GetObject(registerIndex, out object result) || !runtime.Pop(out object valueToSet))
                             Log.Error($"{forClass.Name}::{info.Name} Setter Failed");
                         else
                             info.SetValue(result, valueToSet);
-                    });
+                    }, new ParamType[0]);
                 }
             }
 
@@ -127,10 +129,11 @@ namespace ReflectionBindings {
                         Log.Error($"{forClass.Name}::{copyInfo.Name} Function failed");
                     };
 
-                    InstructionRegister.RegisterGetter(info.Name, forClass.Name, 1, action);
+                    InstructionRegister.RegisterGetter(info.Name + "::" + forClass.Name, action,
+                        parameterInfo.Select(x => InstructionRegister.GetParamType(x.ParameterType)).ToArray());
                 } else {
                     // Setter
-                    InstructionRegister.RegisterSetter(info.Name, forClass.Name, 1, (InterpreterRuntime runtime, int registerIndex) => {
+                    InstructionRegister.RegisterSetter(info.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
                         if (runtime.GetObject(registerIndex, out object result)) {
                             if (parameterInfo.Length > 0) {
                                 object[] objects = new object[parameterInfo.Length];
@@ -149,7 +152,7 @@ namespace ReflectionBindings {
 
                             Log.Error($"{forClass.Name}::{copyInfo.Name} Function failed");
                         }
-                    });
+                    }, parameterInfo.Select(x => InstructionRegister.GetParamType(x.ParameterType)).ToArray());
                 }
             }
         }

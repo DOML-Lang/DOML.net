@@ -14,6 +14,37 @@ using System.Linq;
 using System.Reflection;
 
 namespace DOML.IR {
+    public enum ParamType {
+        INT = 0,
+        FLT = 1,
+        DEC = 2,
+        STR = 3,
+        BOOL = 4,
+        OBJ = 5,
+        MAP = 6,
+        VEC = 7,
+    }
+
+    public enum FnType {
+        CONSTRUCTOR,
+        GETTER,
+        SETTER,
+    }
+
+    public struct FunctionDefinition {
+        public readonly string name;
+        public readonly FnType type;
+        public readonly Action<InterpreterRuntime, int> action;
+        public readonly ParamType[] parameterTypes;
+
+        public FunctionDefinition(string name, FnType type, Action<InterpreterRuntime, int> action, ParamType[] parameterTypes) {
+            this.name = name;
+            this.type = type;
+            this.action = action;
+            this.parameterTypes = parameterTypes;
+        }
+    }
+
     /// <summary>
     /// A register of all the instructions.
     /// </summary>
@@ -21,55 +52,57 @@ namespace DOML.IR {
         /// <summary>
         /// These represent the actions to run.
         /// </summary>
-        public readonly static Dictionary<string, Action<InterpreterRuntime, int>> Setters = new Dictionary<string, Action<InterpreterRuntime, int>>();
+        public readonly static Dictionary<string, FunctionDefinition> Actions;
 
-        public readonly static Dictionary<string, Action<InterpreterRuntime, int>> Constructors = new Dictionary<string, Action<InterpreterRuntime, int>>();
+        public static FunctionDefinition GetSetter(string name) => GetAction("set::" + name);
+        public static void RegisterSetter(string name, Action<InterpreterRuntime, int> func, ParamType[] parameterTypes) => RegisterAction("set::" + name, func, FnType.SETTER, parameterTypes);
+        public static bool UnRegisterSetter(string name) => UnRegisterAction("set::" + name);
 
-        public readonly static Dictionary<string, Action<InterpreterRuntime, int>> Getters = new Dictionary<string, Action<InterpreterRuntime, int>>();
+        public static FunctionDefinition GetGetter(string name) => GetAction("get::" + name);
+        public static void RegisterGetter(string name, Action<InterpreterRuntime, int> func, ParamType[] parameterTypes) => RegisterAction("get::" + name, func, FnType.GETTER, parameterTypes);
+        public static bool UnRegisterGetter(string name) => UnRegisterAction("get::" + name);
 
-        /// <summary>
-        /// Register a getter function.
-        /// </summary>
-        /// <param name="name"> Function name. </param>
-        /// <param name="forObject"> The object name this refers to. </param>
-        /// <param name="returnCount"> The amount of return variables. </param>
-        /// <param name="func"> The function. </param>
-        public static void RegisterGetter(string name, string forObject, int returnCount, Action<InterpreterRuntime, int> func) => RegisterActionAndSizeOf($"get {forObject}::{name}", returnCount, func);
+        public static FunctionDefinition GetConstructor(string name) => GetAction("ctor::" + name);
+        public static void RegisterConstructor(string name, Action<InterpreterRuntime, int> func, ParamType[] parameterTypes) => RegisterAction("ctor::" + name, func, FnType.CONSTRUCTOR, parameterTypes);
+        public static bool UnRegisterConstructor(string name) => UnRegisterAction("ctor::" + name);
 
-        /// <summary>
-        /// Register a setter function.
-        /// </summary>
-        /// <param name="name"> Function name. </param>
-        /// <param name="forObject"> The object name this refers to. </param>
-        /// <param name="parameterCount"> The amount of parameter variables. </param>
-        /// <param name="func"> The function. </param>
-        public static void RegisterSetter(string name, string forObject, int parameterCount, Action<InterpreterRuntime, int> func) => RegisterActionAndSizeOf($"set {forObject}::{name}", parameterCount, func);
+        public static ParamType GetParamType(Type t) {
+            if (t.IsArray) return ParamType.VEC;
+            if (t == typeof(int) || t == typeof(short) || t == typeof(byte) || t == typeof(sbyte) || t == typeof(long) ||
+                t == typeof(ulong) || t == typeof(uint) || t == typeof(ushort) || t == typeof(char)) {
+                return ParamType.INT;
+            }
+            if (t == typeof(float) || t == typeof(double)) return ParamType.FLT;
+            if (t == typeof(bool)) return ParamType.BOOL;
+            if (t == typeof(decimal)) return ParamType.DEC;
+            if (t == typeof(string)) return ParamType.STR;
+            if (t.GetTypeInfo().IsGenericType) {
+                if (t.GetGenericTypeDefinition() == typeof(Dictionary<,>)) return ParamType.MAP;
+                if (t.GetGenericTypeDefinition() == typeof(List<>)) return ParamType.VEC;
+            }
+            return ParamType.OBJ;
+        }
 
-        /// <summary>
-        /// Unregisters a getter function.
-        /// </summary>
-        /// <param name="name"> Function name. </param>
-        /// <param name="forObject"> The object name this refers to. </param>
-        public static void UnRegisterGetter(string name, string forObject) => UnRegisterActionAndSizeOf($"get {forObject}::{name}");
-
-        /// <summary>
-        /// Unregisters a setter function.
-        /// </summary>
-        /// <param name="name"> Function name. </param>
-        /// <param name="forObject"> The object name this refers to. </param>
-        public static void UnRegisterSetter(string name, string forObject) => UnRegisterActionAndSizeOf($"set {forObject}::{name}");
+        public static FunctionDefinition GetAction(string name) {
+            if (Actions.ContainsKey(name)) {
+                return Actions[name];
+            } else {
+                Log.Error($"No action called {name}");
+                return default(FunctionDefinition);
+            }
+        }
 
         /// <summary>
         /// Registers a constructor.
         /// </summary>
         /// <param name="name"> Function name. </param>
         /// <param name="func"> The function. </param>
-        public static void RegisterConstructor(string name, Action<InterpreterRuntime, int> func) {
-            if (Constructors.ContainsKey(name) == false) {
-                Constructors.Add(name, func);
+        public static void RegisterAction(string name, Action<InterpreterRuntime, int> func, FnType type, ParamType[] parameterTypes) {
+            if (Actions.ContainsKey(name) == false) {
+                Actions.Add(name, new FunctionDefinition(name, type, func, parameterTypes));
             } else {
                 Log.Warning($"Action already exists for {name}, will set to the one provided");
-                Constructors[name] = func;
+                Actions[name] = new FunctionDefinition(name, type, func, parameterTypes);
             }
         }
 
@@ -77,41 +110,6 @@ namespace DOML.IR {
         /// Unregisters a constructor.
         /// </summary>
         /// <param name="name"> Function name. </param>
-        public static void UnRegisterConstructor(string name) {
-            Constructors.Remove(name);
-        }
-
-        /// <summary>
-        /// Clears all instructions.
-        /// Doesn't include system made ones.
-        /// </summary>
-        public static void ClearInstructions() {
-            Constructors.Clear();
-            Getters.Clear();
-            Setters.Clear();
-        }
-
-        /// <summary>
-        /// Registers action and sizeof.
-        /// </summary>
-        /// <param name="name"> The function name. </param>
-        /// <param name="amount"> The amount of sizeofs. </param>
-        /// <param name="func"> The function. </param>
-        private static void RegisterActionAndSizeOf(string name, int amount, Action<InterpreterRuntime, int> func) {
-            if (Actions.ContainsKey(name) == false) {
-                Actions.Add(name, func);
-            } else {
-                Log.Warning($"Action already exists for {name}, will set to the one provided");
-                Actions[name] = func;
-            }
-
-            if (SizeOf.ContainsKey(name)) {
-                Log.Warning($"SizeOf already exists for {name}, will choose the higher variant.");
-                if (SizeOf[name] < amount)
-                    SizeOf[name] = amount;
-            } else {
-                SizeOf.Add(name, amount);
-            }
-        }
+        public static bool UnRegisterAction(string name) => Actions.Remove(name);
     }
 }

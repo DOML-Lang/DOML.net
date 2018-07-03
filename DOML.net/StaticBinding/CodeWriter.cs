@@ -154,6 +154,35 @@ namespace StaticBindings {
             WriteIndentLine("}");
         }
 
+        // Should really be put elsewhere
+        public static string GetParamType(IEnumerable<Type> types) {
+            StringBuilder builder = new StringBuilder();
+            builder.Append("new ParamType[] { ");
+            int count = types.Count();
+            int i = 0;
+
+            // AWFUL FORMATTING @FIX
+            foreach (Type t in types) {
+                i++;
+                if (t.IsArray) builder.Append("ParamType.VEC");
+                else if (t == typeof(int) || t == typeof(short) || t == typeof(byte) || t == typeof(sbyte) || t == typeof(long) ||
+                    t == typeof(ulong) || t == typeof(uint) || t == typeof(ushort) || t == typeof(char)) {
+                    builder.Append("ParamType.INT");
+                } else if (t == typeof(float) || t == typeof(double)) builder.Append("ParamType.FLT");
+                else if (t == typeof(bool)) builder.Append("ParamType.BOOL");
+                else if (t == typeof(decimal)) builder.Append("ParamType.DEC");
+                else if (t == typeof(string)) builder.Append("ParamType.STR");
+                else if (t.GetTypeInfo().IsGenericType) {
+                    if (t.GetGenericTypeDefinition() == typeof(Dictionary<,>)) builder.Append("ParamType.MAP");
+                    else if (t.GetGenericTypeDefinition() == typeof(List<>)) builder.Append("ParamType.VEC");
+                } else builder.Append("ParamType.OBJ");
+
+                if (i < count) builder.Append(", ");
+            }
+            builder.Append(" }");
+            return builder.ToString();
+        }
+
         /// <summary>
         /// Writes the class (its signature, and all its fields, properties, and functions).
         /// </summary>
@@ -278,7 +307,7 @@ namespace StaticBindings {
             indentLevel--;
             CloseBrace();
 
-            registerCalls.Add($"InstructionRegister.RegisterConstructor(\"{objectType}\", {functionName});");
+            registerCalls.Add($"InstructionRegister.RegisterConstructor(\"{objectType}\", {functionName}, {GetParamType(info.Select(x => x.ParameterType))});");
             unregisterCalls.Add($"InstructionRegister.UnRegisterConstructor(\"{objectType}\");");
         }
 
@@ -331,12 +360,12 @@ namespace StaticBindings {
             string name = $"{methodInfo.GetCustomAttribute<DOMLCustomiseAttribute>()?.Name ?? methodInfo.Name}";
 
             if (type == "Get") {
-                registerCalls.Add($"InstructionRegister.RegisterGetter(\"{name}\", \"{objectType}\", 1, {functionName});");
-                unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}\", \"{objectType}\");");
+                registerCalls.Add($"InstructionRegister.RegisterGetter(\"{name}::{objectType}\", {functionName}, {GetParamType(info.Select(x => x.ParameterType))});");
+                unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}::{objectType}\");");
             } else {
                 // Set
-                registerCalls.Add($"InstructionRegister.RegisterSetter(\"{name}\", \"{objectType}\", {info.Length}, {functionName});");
-                unregisterCalls.Add($"InstructionRegister.UnRegisterSetter(\"{name}\", \"{objectType}\");");
+                registerCalls.Add($"InstructionRegister.RegisterSetter(\"{name}::{objectType}\", {functionName}, {GetParamType(info.Select(x => x.ParameterType))});");
+                unregisterCalls.Add($"InstructionRegister.UnRegisterSetter(\"{name}::{objectType}\");");
             }
         }
 
@@ -357,8 +386,8 @@ namespace StaticBindings {
                 indentLevel--;
                 CloseBrace();
 
-                registerCalls.Add($"InstructionRegister.RegisterGetter(\"{name}\", \"{objectType}\", {1}, GetProperty{propertyInfo.Name});");
-                unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}\", \"{objectType}\");");
+                registerCalls.Add($"InstructionRegister.RegisterGetter(\"{name}::{objectType}\", GetProperty{propertyInfo.Name}, new ParamType[0]);");
+                unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}::{objectType}\");");
             }
 
             if (propertyInfo.CanWrite && (propertyInfo.SetMethod?.IsPublic ?? false)) {
@@ -372,8 +401,8 @@ namespace StaticBindings {
                 indentLevel--;
                 CloseBrace();
 
-                registerCalls.Add($"InstructionRegister.RegisterSetter(\"{name}\", \"{objectType}\", {1}, SetProperty{propertyInfo.Name});");
-                unregisterCalls.Add($"InstructionRegister.UnRegisterSetter(\"{name}\", \"{objectType}\");");
+                registerCalls.Add($"InstructionRegister.RegisterSetter(\"{name}::{objectType}\", SetProperty{propertyInfo.Name}, new ParamType[0]);");
+                unregisterCalls.Add($"InstructionRegister.UnRegisterSetter(\"{name}::{objectType}\");");
             }
         }
 
@@ -393,8 +422,8 @@ namespace StaticBindings {
             indentLevel--;
             CloseBrace();
 
-            registerCalls.Add($"InstructionRegister.RegisterGetter(\"{name}\", \"{objectType}\", {1}, GetField{fieldInfo.Name});");
-            unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}\", \"{objectType}\");");
+            registerCalls.Add($"InstructionRegister.RegisterGetter(\"{name}::{objectType}\", GetField{fieldInfo.Name}, new ParamType[0]);");
+            unregisterCalls.Add($"InstructionRegister.UnRegisterGetter(\"{name}::{objectType}\");");
 
             if (fieldInfo.IsLiteral == false && fieldInfo.IsInitOnly == false) {
                 WriteEmptyLine();
@@ -407,8 +436,8 @@ namespace StaticBindings {
                 indentLevel--;
                 CloseBrace();
 
-                registerCalls.Add($"InstructionRegister.RegisterSetter(\"{name}\", \"{objectType}\", {1}, SetField{fieldInfo.Name});");
-                unregisterCalls.Add($"InstructionRegister.UnRegisterSetter(\"{name}\", \"{objectType}\");");
+                registerCalls.Add($"InstructionRegister.RegisterSetter(\"{name}::{objectType}\", SetField{fieldInfo.Name}, new ParamType[0]);");
+                unregisterCalls.Add($"InstructionRegister.UnRegisterSetter(\"{name}::{objectType}\");");
             }
         }
     }

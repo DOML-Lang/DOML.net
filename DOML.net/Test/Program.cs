@@ -30,26 +30,29 @@ using System.Linq;
 
 namespace Test.UnitTests {
     public class Color {
-        public float R, G, B;
+        public byte R, G, B;
         public string Name;
 
-        public void RGB(float R, float G, float B) {
-            this.R = R / 255;
-            this.G = G / 255;
-            this.B = B / 255;
+        public void RGB(int R, int G, int B) {
+            this.R = (byte)R;
+            this.G = (byte)G;
+            this.B = (byte)B;
         }
 
         public void Normalized(float R, float G, float B) {
-            this.R = R;
-            this.G = G;
-            this.B = B;
+            this.R = (byte)(R * 255);
+            this.G = (byte)(G * 255);
+            this.B = (byte)(B * 255);
         }
 
         public void Hex(int hex) {
-            int r = ((hex & 0xff0000) >> 16) / 255;
-            int g = ((hex & 0xff00) >> 8) / 255;
-            int b = (hex & 0xff) / 255;
+            int r = (hex & 0xff0000) >> 16;
+            int g = (hex & 0xff00) >> 8;
+            int b = hex & 0xff;
         }
+
+        public int Hex() => (R << (byte)16) | (G << (byte)8) | B;
+        public (float, float, float) Normalized() => (R / 255, G / 255, B / 255);
     }
 
     [RPlotExporter]
@@ -107,15 +110,16 @@ namespace Test.UnitTests {
         }
 
         public static void Main(string[] args) {
-            //if (Directory.Exists(Directory.GetCurrentDirectory() + "/StaticBindings") == false)
-            //    Directory.CreateDirectory(Directory.GetCurrentDirectory() + "/StaticBindings");
+            if (Directory.Exists(Directory.GetCurrentDirectory() + "/StaticBindings") == false)
+                Directory.CreateDirectory(Directory.GetCurrentDirectory() + "/StaticBindings");
 
-            //CreateBindings.DirectoryPath = Directory.GetCurrentDirectory() + "/StaticBindings";
-            //CreateBindings.Create<Color>();
-            //CreateBindings.CreateFinalFile();
+            CreateBindings.DirectoryPath = Directory.GetCurrentDirectory() + "/StaticBindings";
+            CreateBindings.Create<Color>();
+            CreateBindings.CreateFinalFile();
 
-            //Console.SetWindowSize((int)(Console.LargestWindowWidth / 1.5f), (int)(Console.LargestWindowHeight / 1.5f));
-            DOMLBindings.LinkBindings();
+            //DOML.LinkBindings();
+            Console.SetWindowSize((int)(Console.LargestWindowWidth / 1.5f), (int)(Console.LargestWindowHeight / 1.5f));
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
             using (StreamReader reader = new StreamReader(File.OpenRead("test.doml"))) {
                 int c = reader.Read();
                 while (c > 0) {
@@ -136,6 +140,7 @@ namespace Test.UnitTests {
             }
 
             topLevel.Print(Console.Out);
+            Console.Read();
             return;
 #if BenchmarkDotNet
             //Summary summary = BenchmarkRunner.Run<AllTests>();
