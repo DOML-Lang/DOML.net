@@ -31,6 +31,16 @@ namespace DOML {
             BINARY_LENGTH = 1 << 3,
         }
 
+        private static Dictionary<string, Func<TextReader, Parser, MacroNode>> macros = new Dictionary<string, Func<TextReader, Parser, MacroNode>>() {
+            ["ir"] = new IRMacroNode().ParseNode,
+            ["deinit"] = new DeinitMacroNode().ParseNode,
+            ["version"] = HandleVersion,
+            ["strict"] = HandleStrict,
+            ["nokeywords"] = HandleNoKeywords,
+        };
+
+        public const string CompilerVersion = "0.3";
+
         private Settings settings;
 
         /// <summary>
@@ -77,6 +87,21 @@ namespace DOML {
         /// Inside a block.
         /// </summary>
         private bool inBlock;
+
+        /// <summary>
+        /// #strict true/false.
+        /// </summary>
+        private bool strict;
+
+        /// <summary>
+        /// #version x.y.z.
+        /// </summary>
+        private string version = CompilerVersion;
+
+        /// <summary>
+        /// #nokeywords true/false
+        /// </summary>
+        private bool noKeywords;
 
         /// <summary>
         /// All the register informtation.
@@ -211,10 +236,13 @@ namespace DOML {
                 if (currentCharacter == '#') {
                     MacroNode node = ParseMacro(reader);
                     if (node == null) {
+                        Log.Error("Invalid macro");
                         success = false;
                         break;
                     }
-                    children.Add(node);
+
+                    // Avoids having a lot of NOPs
+                    if (!(node is DummyNode)) children.Add(node);
                 } else if (currentCharacter == '}') {
                     if (inBlock) {
                         inBlock = false;
@@ -250,12 +278,89 @@ namespace DOML {
                 }
             }
 
+            // Confirm version
+            if (version != CompilerVersion) {
+                string[] splitVersion = version.Split('.');
+                int x = int.Parse(splitVersion[0]);
+                int y = int.Parse(splitVersion[1]);
+                int z = int.Parse(splitVersion[2]);
+                if (x > 0 || y > 3 || z > 0) {
+                    Log.Error($"Invalid Version {version}, this compiler doesn't support above v0.3.0");
+                    return null;
+                } else if (y < 3) {
+                    Log.Error($"Invalid Version {version}, this compiler doesn't support below v0.3");
+                    return null;
+                }
+            }
+
+            Console.WriteLine(version);
+
             return new TopLevelNode(children.ToArray(), !success, registers, maxSpaces);
         }
 
+        private static DummyNode HandleVersion(TextReader reader, Parser parser) {
+            StringBuilder version = new StringBuilder();
+            parser.IgnoreWhitespace(reader);
+            int digitCount = 0;
+            while (char.IsDigit(parser.currentCharacter) || parser.currentCharacter == '.') {
+                if (parser.currentCharacter == '.') digitCount++;
+                version.Append(parser.currentCharacter);
+                parser.Advance(reader);
+            }
+
+            if (!char.IsWhiteSpace(parser.currentCharacter) || digitCount > 2) {
+                Log.Error("Invalid Version");
+                return null;
+            }
+
+            parser.version = version.ToString();
+            parser.IgnoreWhitespace(reader);
+            return new DummyNode();
+        }
+
+        private bool? ParseBool(TextReader reader) {
+            IgnoreWhitespace(reader);
+            string val = ParseIdentifier(reader, "", false).ToString();
+            IgnoreWhitespace(reader);
+            if (val == "true") return true;
+            if (val == "false") return false;
+            return null;
+        }
+
+        private static MacroNode HandleNoKeywords(TextReader reader, Parser parser) {
+            if (parser.ParseBool(reader) is bool val) {
+                parser.noKeywords = val;
+                return new DummyNode();
+            } else {
+                return null;
+            }
+        }
+
+        private static MacroNode HandleStrict(TextReader reader, Parser parser) {
+            if (parser.ParseBool(reader) is bool val) {
+                parser.strict = val;
+                return new DummyNode();
+            } else {
+                return null;
+            }
+        }
+
         private MacroNode ParseMacro(TextReader reader) {
-            if (currentCharacter != '#') return null;
-            throw new NotImplementedException();
+            if (currentCharacter != '#') {
+                Log.Error("Internal error");
+                return null;
+            }
+
+            Advance(reader);
+            IgnoreWhitespace(reader);
+            // Parse identifier
+            string identifier = ParseIdentifier(reader, "", false).ToString().ToLower();
+            if (macros.ContainsKey(identifier)) {
+                return macros[identifier](reader, this);
+            }
+
+            return null;
+            // Should we suggest similar names??
         }
 
         private FunctionNode ParseAssignment(TextReader reader, ObjectNode obj, string name = null) {
@@ -670,7 +775,7 @@ namespace DOML {
             return true;
         }
 
-        private void IgnoreWhitespace(TextReader reader) {
+        internal void IgnoreWhitespace(TextReader reader) {
             while (char.IsWhiteSpace(currentCharacter)) {
                 Advance(reader);
             }

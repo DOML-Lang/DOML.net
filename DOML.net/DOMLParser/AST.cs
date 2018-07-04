@@ -217,22 +217,20 @@ namespace DOML.AST {
         }
     }
 
-    public class MacroNode : BaseNode {
-        public override void BasicCodegen(TextWriter writer, bool simple) {
-            throw new NotImplementedException();
-        }
+    public sealed class DummyNode : MacroNode {
+        public override void BasicCodegen(TextWriter writer, bool simple) { }
 
-        public override IEnumerable<Instruction> GetInstructions() {
-            throw new NotImplementedException();
-        }
+        public override IEnumerable<Instruction> GetInstructions() { yield return new Instruction(Opcodes.NOP, new object[0]); }
 
-        public override void Print(TextWriter writer, string indent) {
+        public override MacroNode ParseNode(TextReader reader, Parser parser) { return new DummyNode(); }
 
-        }
+        public override void Print(TextWriter writer, string indent) { }
 
-        public override bool Verify(TextWriter err) {
-            throw new NotImplementedException();
-        }
+        public override bool Verify(TextWriter err) { return true; }
+    }
+
+    public abstract class MacroNode : BaseNode {
+        public abstract MacroNode ParseNode(TextReader reader, Parser parser);
     }
 
     public sealed class ReserveNode : BaseNode {
