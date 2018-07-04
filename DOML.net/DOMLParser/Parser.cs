@@ -106,7 +106,9 @@ namespace DOML {
         /// <summary>
         /// All the register informtation.
         /// </summary>
-        private static Dictionary<string, ObjectNode> Registers { get; } = new Dictionary<string, ObjectNode>();
+        private Dictionary<string, ObjectNode> Registers { get; } = new Dictionary<string, ObjectNode>();
+
+        private Dictionary<string, BaseNode> Definitions { get; } = new Dictionary<string, BaseNode>();
 
         /// <summary>
         /// Log an error using current line information.
@@ -267,12 +269,13 @@ namespace DOML {
                 } else {
                     BaseNode node = ParseObject(reader);
                     if (node == null) {
+                        // Handling `obj.{ ... }`
                         if (currentCharacter != '.' || reader.Peek() != '{' || !inBlock) {
                             return null;
                         } else {
                             Advance(reader, 2);
                         }
-                    } else {
+                    } else if (!(node is DummyNode)) {
                         children.Add(node);
                     }
                 }
@@ -510,15 +513,25 @@ namespace DOML {
                 if (value == "false") return new ValueNode() { obj = false };
                 if (value == "null") return new ValueNode() { obj = null };
 
+                BaseNode objValue = null;
+                bool definition = false;
+                if (Registers.ContainsKey(value)) objValue = Registers[value];
+                else if (Definitions.ContainsKey(value)) {
+                    objValue = Definitions[value];
+                    definition = true;
+                }
+
                 // Object
-                if (!Registers.ContainsKey(value)) {
-                    LogError($"Invalid value {value}");
+                if (objValue == null) {
+                    // @TODO compare strings to guess name
+                    LogError($"Invalid value {value}, maybe a typo.");
                     return null;
                 }
 
                 if (currentCharacter != '.') {
-                    // Easy returning of object node
-                    return Registers[value];
+                    return objValue;
+                } else if (definition) {
+                    LogError($"'.' operator not valid on a definition");
                 }
 
                 // Get other end
@@ -569,7 +582,8 @@ namespace DOML {
                 BaseNode value = ParseValue(reader, ref count, true);
                 if (value == null) return null;
                 if (value is ReserveNode) {
-                    // Is a 'type'
+                    // Is a func argument
+                    // @Query? Does count have to be reset
                     if (currentCharacter != ':') {
                         LogError("Internal error expected ':'");
                         return null;
@@ -630,6 +644,31 @@ namespace DOML {
                 }
 
                 Advance(reader);
+                if (currentCharacter == '=') {
+                    // Definition
+                    Advance(reader);
+                    IgnoreWhitespace(reader);
+                    int count = 0;
+                    BaseNode value = ParseValue(reader, ref count);
+                    // Do we actually care about count??
+                    if (value == null) {
+                        return null;
+                    }
+
+                    string definition = name.ToString();
+
+                    if (Definitions.ContainsKey(definition)) {
+                        Log.Warning("Definition already defined, overwriting");
+                    }
+
+                    if (Registers.ContainsKey(definition)) {
+                        Log.Error("Registers contains object with the same name, can't define a definition with the same name as an object");
+                    }
+
+                    Definitions.Add(definition, value);
+                    return new DummyNode();
+                }
+
                 IgnoreWhitespace(reader);
                 StringBuilder type = ParseIdentifier(reader, "", false);
                 ObjectNode objectNode;
@@ -661,6 +700,14 @@ namespace DOML {
                 }
                 registers++;
                 objectNode.constructor.obj = objectNode;
+                if (Definitions.ContainsKey(objName)) {
+                    Log.Error("Definitions contains a definition with the same name, can't define an object with the same name as a definition");
+                }
+
+                if (Registers.ContainsKey(objName)) {
+                    Log.Warning("Object already defined, overwriting.  Undefined behaviour from now on.");
+                }
+
                 Registers.Add(objName, objectNode);
                 IgnoreWhitespace(reader);
                 if (currentCharacter == '{') {
