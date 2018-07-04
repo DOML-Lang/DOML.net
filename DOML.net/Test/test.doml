@@ -1,5 +1,7 @@
-﻿Test : Color {
-  RGB = 255, 64, 128, [1, 2, 3]
+﻿arr := [1, 2, 3]
+
+Test : Color {
+  RGB = 255, 64, 128, arr, arr
 }
 
 TheSame : Color::Normalized(r: 1.0, g: 0.25, b: 0.5) {
