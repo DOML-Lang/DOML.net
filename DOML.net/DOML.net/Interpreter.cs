@@ -291,21 +291,14 @@ namespace DOML.IR {
                 #endregion
                 #region Map Instructions
                 case Opcodes.PUSH_MAP:
-                break;
                 case Opcodes.PUSH_COLLECTION:
-                break;
                 case Opcodes.SET_MAP:
-                break;
                 case Opcodes.SET_COLLECTION:
-                break;
                 case Opcodes.QUICK_SET_MAP:
-                break;
                 case Opcodes.ZIP_MAP:
-                break;
                 case Opcodes.GET_MAP:
-                break;
                 case Opcodes.GET_COLLECTION:
-                break;
+                throw new NotImplementedException("Maps aren't implemented");
                 #endregion
                 default:
                 throw new NotImplementedException("Option not implemented");
