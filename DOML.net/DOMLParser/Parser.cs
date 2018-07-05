@@ -91,7 +91,7 @@ namespace DOML {
         /// <summary>
         /// #strict true/false.
         /// </summary>
-        private bool strict;
+        private bool strict = true;
 
         /// <summary>
         /// #version x.y.z.
@@ -267,7 +267,7 @@ namespace DOML {
                     }
                     children.Add(node);
                 } else {
-                    BaseNode node = ParseObject(reader);
+                    BaseNode node = ParseObjectOrAssignment(reader);
                     if (node == null) {
                         // Handling `obj.{ ... }`
                         if (currentCharacter != '.' || reader.Peek() != '{' || !inBlock) {
@@ -392,174 +392,198 @@ namespace DOML {
             return (c == ';' || c == ']' || c == ',' || c == '}' || char.IsWhiteSpace(c) || c == ')');
         }
 
-        // Returns true if value was properly passed else false if another thing was parsed
+        private BaseNode ParseArray(TextReader reader, ref int count) {
+            ArrayNode values = new ArrayNode();
+            while (currentCharacter != ']' && Advance(reader)) {
+                IgnoreWhitespace(reader);
+                BaseNode node = ParseValue(reader, ref count); // note: not propagating possibleFuncArg
+                if (node == null || node is ReserveNode) return null; // Error occurred
+                values.values.Add(node);
+                IgnoreWhitespace(reader);
+                if (currentCharacter != ',' && currentCharacter != ']') {
+                    LogError("Missing ',' or ']'");
+                    return null;
+                }
+            }
+
+            if (values.values.Count == 0) {
+                // empty array
+                LogError("Can't have empty array, use null instead");
+                return null;
+            }
+
+            if (currentCharacter != ']') {
+                LogError("Missing ']' character.");
+                return null;
+            }
+
+            Advance(reader);
+            return values;
+        }
+
+        // Parses floats and integers
+        private BaseNode ParseNumber(TextReader reader, ref int count) {
+            StringBuilder builder = new StringBuilder();
+            bool flt = false;
+            while (!IsEndingChar(currentCharacter)) {
+                builder.Append(currentCharacter);
+                if (currentCharacter == '.' || currentCharacter == 'e' || currentCharacter == 'E') flt = true;
+                Advance(reader);
+            }
+
+            if (flt) {
+                // @TODO: confirm it supports hex, oct and bin
+                if (builder.Length == 0 || !double.TryParse(builder.ToString(), out double result)) {
+                    LogError("Invalid double: " + builder.ToString());
+                    return null;
+                }
+                return new ValueNode() { obj = result };
+            } else {
+                // @TODO: confirm it supports hex, oct and bin
+                if (builder.Length == 0 || !long.TryParse(builder.ToString(), out long result)) {
+                    LogError("Invalid integer: " + builder.ToString());
+                    return null;
+                }
+                return new ValueNode() { obj = result };
+            }
+        }
+
+        private BaseNode ParseString(TextReader reader, ref int count) {
+            StringBuilder builder = new StringBuilder();
+            bool escaped = false;
+            while (Advance(reader) && (currentCharacter != '"' || escaped)) {
+                if (currentCharacter == '\\') {
+                    escaped = true;
+                } else {
+                    // @TODO: other escape codes like whitespace
+                    escaped = false;
+                    builder.Append(currentCharacter);
+                }
+            }
+
+            if (currentCharacter != '"' && !escaped) {
+                LogError("Missing terminating '\"'");
+                return null;
+            }
+            Advance(reader);
+            return new ValueNode() { obj = builder.ToString() };
+        }
+
+        private BaseNode ParseDecimal(TextReader reader, ref int count) {
+            Advance(reader); // skip '$'
+            StringBuilder builder = new StringBuilder();
+            while (IsEndingChar(currentCharacter)) {
+                builder.Append(currentCharacter);
+            }
+
+            if (builder.Length == 0 || !decimal.TryParse(builder.ToString(), out decimal result)) {
+                LogError("Invalid decimal: " + builder.ToString());
+                return null;
+            }
+
+            return new ValueNode() { obj = result };
+        }
+
+        // @TODO: refactor this more its too long
+        private BaseNode ParseObjectReference(TextReader reader, ref int count, bool possibleFuncArg = false) {
+            // @TODO: support #NoKeywords
+            // Could be boolean, object or null
+            // Parse till ',' ']' ')' or an invalid
+            StringBuilder identifier = ParseIdentifier(reader, "", false);
+
+            if (currentCharacter != '.') {
+                IgnoreWhitespace(reader);
+                if (currentCharacter == ':') {
+                    if (possibleFuncArg) {
+                        // @Query? Does count have to be reset
+                        if (currentCharacter != ':') {
+                            LogError("Internal error expected ':'");
+                            return null;
+                        }
+
+                        Advance(reader);
+                        IgnoreWhitespace(reader);
+                        // Parse actual value
+                        BaseNode val = ParseValue(reader, ref count);
+                        if (val == null) return null;
+                        return new ArgumentNode() { name = identifier.ToString(), value = val };
+                    } else {
+                        LogError("Syntax Error");
+                        return null;
+                    }
+                } else if (currentCharacter == '=') {
+                    LogError("Syntax error");
+                    return null;
+                }
+            }
+
+            string value = identifier.ToString();
+            if (value == "true") return new ValueNode() { obj = true };
+            if (value == "false") return new ValueNode() { obj = false };
+            if (value == "null") return new ValueNode() { obj = null };
+
+            BaseNode objValue = null;
+            bool definition = false;
+            if (Registers.ContainsKey(value)) objValue = Registers[value];
+            else if (Definitions.ContainsKey(value)) {
+                objValue = Definitions[value];
+                definition = true;
+            }
+
+            // Object
+            if (objValue == null) {
+                // @TODO compare strings to guess name
+                LogError($"Invalid value \"{value}\", maybe a typo.");
+                return null;
+            }
+
+            if (currentCharacter != '.') {
+                return objValue;
+            } else if (definition) {
+                LogError($"'.' operator not valid on a definition");
+                return null;
+            }
+
+            // Get other end
+            identifier.Clear();
+            Advance(reader); // skip '.'
+            while (Advance(reader)) {
+                if (char.IsLetter(currentCharacter)) {
+                    identifier.Append(currentCharacter);
+                } else {
+                    break;
+                }
+            }
+            IgnoreWhitespace(reader);
+
+            if (currentCharacter == '=') return null;
+
+            string funcName = identifier.ToString();
+
+            List<ArgumentNode> list = new List<ArgumentNode>();
+            if (currentCharacter == '(') {
+                // Parse function list
+                list = ParseFuncArgList(reader, ref count);
+                if (list == null) {
+                    return null;
+                }
+            }
+
+            return new FunctionNode() { args = list.ToArray(), name = funcName, obj = Registers[value] };
+        }
+
         private BaseNode ParseValue(TextReader reader, ref int count, bool possibleFuncArg = false) {
             count++;
             if (currentCharacter == '[') {
-                ArrayNode values = new ArrayNode();
-                while (currentCharacter != ']' && Advance(reader)) {
-                    IgnoreWhitespace(reader);
-                    BaseNode node = ParseValue(reader, ref count);
-                    if (node == null || node is ReserveNode) return null; // Error occurred
-                    values.values.Add(node);
-                    IgnoreWhitespace(reader);
-                    if (currentCharacter != ',' && currentCharacter != ']') {
-                        LogError("Missing ',' or ']'");
-                        return null;
-                    }
-                }
-
-                if (values.values.Count == 0) {
-                    // empty array
-                    LogError("Can't have empty array, use null instead");
-                    return null;
-                }
-
-                if (currentCharacter != ']') {
-                    LogError("Missing ']' character.");
-                    return null;
-                }
-
-                Advance(reader);
-                return values;
+                return ParseArray(reader, ref count);
             } else if (char.IsDigit(currentCharacter)) {
-                // number
-                StringBuilder builder = new StringBuilder();
-                bool flt = false;
-                while (!IsEndingChar(currentCharacter)) {
-                    builder.Append(currentCharacter);
-                    if (currentCharacter == '.' || currentCharacter == 'e' || currentCharacter == 'E') flt = true;
-                    Advance(reader);
-                }
-
-                if (flt) {
-                    // @TODO: confirm it supports hex, oct and bin
-                    if (builder.Length == 0 || !double.TryParse(builder.ToString(), out double result)) {
-                        LogError("Invalid double: " + builder.ToString());
-                        return null;
-                    }
-                    return new ValueNode() { obj = result };
-                } else {
-                    // @TODO: confirm it supports hex, oct and bin
-                    if (builder.Length == 0 || !long.TryParse(builder.ToString(), out long result)) {
-                        LogError("Invalid integer: " + builder.ToString());
-                        return null;
-                    }
-                    return new ValueNode() { obj = result };
-                }
+                return ParseNumber(reader, ref count);
             } else if (currentCharacter == '$') {
-                // decimal
-                // Read till space or comma or newline or semicolon or parenthesis ending or bracket ending or brace ending
-                Advance(reader); // skip '$'
-                StringBuilder builder = new StringBuilder();
-                while (IsEndingChar(currentCharacter)) {
-                    builder.Append(currentCharacter);
-                }
-
-                if (builder.Length == 0 || !decimal.TryParse(builder.ToString(), out decimal result)) {
-                    LogError("Invalid decimal: " + builder.ToString());
-                    return null;
-                }
-
-                return new ValueNode() { obj = result };
+                return ParseDecimal(reader, ref count);
             } else if (currentCharacter == '"') {
-                // string
-                // go till terminating
-                StringBuilder builder = new StringBuilder();
-                bool escaped = false;
-                while (Advance(reader) && (currentCharacter != '"' || escaped)) {
-                    if (currentCharacter == '\\') {
-                        escaped = true;
-                    } else {
-                        // @TODO: other escape codes like whitespace
-                        escaped = false;
-                        builder.Append(currentCharacter);
-                    }
-                }
-
-                if (currentCharacter != '"' && !escaped) {
-                    LogError("Missing terminating '\"'");
-                    return null;
-                }
-                Advance(reader);
-                return new ValueNode() { obj = builder.ToString() };
+                return ParseString(reader, ref count);
             } else {
-                // @TODO: support #NoKeywords
-                // Could be boolean, object or null
-                // Parse till ',' ']' ')' or an invalid
-                StringBuilder identifier = new StringBuilder();
-                do {
-                    identifier.Append(currentCharacter);
-                } while (Advance(reader) && char.IsLetter(currentCharacter));
-
-                if (currentCharacter != '.') {
-                    IgnoreWhitespace(reader);
-                    if (currentCharacter == ':') {
-                        // Not necessarily a syntax error
-                        if (possibleFuncArg) {
-                            return new ReserveNode() { data = identifier.ToString() };
-                        } else {
-                            LogError("Syntax error");
-                            return null;
-                        }
-                    } else if (currentCharacter == '=') {
-                        LogError("Syntax error");
-                        return null;
-                    }
-                }
-
-                string value = identifier.ToString();
-                if (value == "true") return new ValueNode() { obj = true };
-                if (value == "false") return new ValueNode() { obj = false };
-                if (value == "null") return new ValueNode() { obj = null };
-
-                BaseNode objValue = null;
-                bool definition = false;
-                if (Registers.ContainsKey(value)) objValue = Registers[value];
-                else if (Definitions.ContainsKey(value)) {
-                    objValue = Definitions[value];
-                    definition = true;
-                }
-
-                // Object
-                if (objValue == null) {
-                    // @TODO compare strings to guess name
-                    LogError($"Invalid value {value}, maybe a typo.");
-                    return null;
-                }
-
-                if (currentCharacter != '.') {
-                    return objValue;
-                } else if (definition) {
-                    LogError($"'.' operator not valid on a definition");
-                }
-
-                // Get other end
-                identifier.Clear();
-                Advance(reader); // skip '.'
-                while (Advance(reader)) {
-                    if (char.IsLetter(currentCharacter)) {
-                        identifier.Append(currentCharacter);
-                    } else {
-                        break;
-                    }
-                }
-                IgnoreWhitespace(reader);
-
-                if (currentCharacter == '=') return null;
-
-                string funcName = identifier.ToString();
-
-                List<ArgumentNode> list = new List<ArgumentNode>();
-                if (currentCharacter == '(') {
-                    // Parse function list
-                    list = ParseFuncArgList(reader, ref count);
-                    if (list == null) {
-                        return null;
-                    }
-                }
-
-                return new FunctionNode() { args = list.ToArray(), name = funcName, obj = Registers[value] };
+                return ParseObjectReference(reader, ref count, possibleFuncArg);
             }
         }
 
@@ -573,7 +597,7 @@ namespace DOML {
             List<ArgumentNode> arguments = new List<ArgumentNode>();
 
             if (currentCharacter == ')') {
-                // Empty
+                // Empty/void
                 return arguments;
             }
 
@@ -581,24 +605,8 @@ namespace DOML {
                 IgnoreWhitespace(reader);
                 BaseNode value = ParseValue(reader, ref count, true);
                 if (value == null) return null;
-                if (value is ReserveNode) {
-                    // Is a func argument
-                    // @Query? Does count have to be reset
-                    if (currentCharacter != ':') {
-                        LogError("Internal error expected ':'");
-                        return null;
-                    }
-
-                    Advance(reader);
-                    IgnoreWhitespace(reader);
-                    // Parse actual value
-                    string arg = (string)((ReserveNode)value).data;
-                    value = ParseValue(reader, ref count);
-                    if (value == null) return null;
-                    arguments.Add(new ArgumentNode() { name = arg, value = value });
-                } else {
-                    arguments.Add(new ArgumentNode() { name = null, value = value });
-                }
+                if (value is ArgumentNode arg) arguments.Add(arg);
+                else arguments.Add(new ArgumentNode() { name = null, value = value });
             } while (currentCharacter != ')' && currentCharacter == ',' && Advance(reader));
 
             if (currentCharacter != ')') {
@@ -609,113 +617,125 @@ namespace DOML {
             return arguments;
         }
 
-        private BaseNode ParseObject(TextReader reader) {
+        private BaseNode ParseLiteralDefinition(TextReader reader, string name) {
+            // Definition
+            Advance(reader);
+            IgnoreWhitespace(reader);
+            int count = 0;
+            BaseNode value = ParseValue(reader, ref count);
+            // Do we actually care about count??
+            if (value == null) {
+                return null;
+            }
+
+            string definition = name;
+
+            if (Definitions.ContainsKey(definition) && strict) {
+                Log.Error("Definition already defined, can't redefine definitions when in strict mode, disable it with #strict false");
+                return null;
+            } else if (Registers.ContainsKey(definition)) {
+                Log.Error("Registers contains object with the same name, can't define a definition with the same name as an object");
+                return null;
+            }
+
+            Definitions[definition] = value;
+            return new DummyNode();
+        }
+
+        private ObjectNode ParseConstructor(TextReader reader, string objName, string typeName) {
+            Advance(reader);
+            if (currentCharacter != ':') {
+                LogError("Syntax error");
+                return null;
+            }
+
+            Advance(reader);
+            string functionName;
+            if (currentCharacter == '(') {
+                // Empty
+                Advance(reader);
+                functionName = objName;
+            } else {
+                functionName = ParseIdentifier(reader, "", false).ToString();
+            }
+
+            int count = 0;
+            List<ArgumentNode> args = ParseFuncArgList(reader, ref count);
+            if (count > maxSpaces) maxSpaces = count;
+            if (args == null) return null;
+            return new ObjectNode() { name = objName, type = typeName, constructor = new FunctionNode() { name = functionName, type = FunctionType.CONSTRUCTOR, args = args.ToArray() } };
+        }
+
+        private BaseNode ParseAssignment(TextReader reader, string name) {
+            // Pasre assignment
+            if (reader.Peek() == '{') {
+                if (!Registers.ContainsKey(name)) {
+                    LogError($"Object doesn't exist {name}");
+                } else {
+                    currentVariable = Registers[name];
+                    inBlock = true;
+                    return null;
+                }
+            }
+
+            // An assignment
+            Advance(reader);
+            if (!Registers.ContainsKey(name)) {
+                LogError($"Object doesn't exist {name}");
+                return null;
+            }
+            return ParseAssignment(reader, Registers[name]);
+        }
+
+        private BaseNode ParseObjectDefinition(TextReader reader, string name) {
+            IgnoreWhitespace(reader);
+            if (currentCharacter != ':') {
+                LogError("Syntax error");
+                return null;
+            }
+
+            Advance(reader);
+            if (currentCharacter == '=') {
+                return ParseLiteralDefinition(reader, name);
+            }
+
+            IgnoreWhitespace(reader);
+            StringBuilder type = ParseIdentifier(reader, "", false);
+            ObjectNode objectNode;
+            string typeName = type.ToString();
+            if (currentCharacter == ':') {
+                objectNode = ParseConstructor(reader, name, typeName);
+            } else {
+                objectNode = new ObjectNode() { name = name, type = typeName, constructor = new FunctionNode() { name = typeName, type = FunctionType.CONSTRUCTOR, args = new ArgumentNode[0] } };
+            }
+            registers++;
+            objectNode.constructor.obj = objectNode;
+            if (Definitions.ContainsKey(name)) {
+                Log.Error("Definitions contains a definition with the same name, can't define an object with the same name as a definition");
+                return null;
+            } else if (Registers.ContainsKey(name) && strict) {
+                Log.Error("Object already defined and in strict mode so can't redefine objects");
+                return null;
+            }
+
+            Registers.Add(name, objectNode);
+            IgnoreWhitespace(reader);
+            if (currentCharacter == '{') {
+                inBlock = true;
+                currentVariable = objectNode;
+                Advance(reader);
+            }
+            return objectNode;
+        }
+
+        private BaseNode ParseObjectOrAssignment(TextReader reader) {
             // Grab name, then check ':'
             StringBuilder name = ParseIdentifier(reader, "", false);
 
             if (currentCharacter == '.') {
-                if (reader.Peek() == '{') {
-                    string objName = name.ToString();
-                    if (!Registers.ContainsKey(objName)) {
-                        LogError($"Object doesn't exist {objName}");
-                        return null;
-                    }
-                    currentVariable = Registers[objName];
-                    inBlock = true;
-                    return null;
-                }
-
-                // An assignment
-                Advance(reader);
-                string obj = name.ToString();
-                if (!Registers.ContainsKey(obj)) {
-                    LogError($"Object doesn't exist {obj}");
-                    return null;
-                }
-                return ParseAssignment(reader, Registers[obj]);
+                return ParseAssignment(reader, name.ToString());
             } else {
-                IgnoreWhitespace(reader);
-                if (currentCharacter != ':') {
-                    if (currentCharacter == '=') {
-                        LogError("Probably have to handle this better");
-                    }
-                    LogError("Syntax error");
-                    return null;
-                }
-
-                Advance(reader);
-                if (currentCharacter == '=') {
-                    // Definition
-                    Advance(reader);
-                    IgnoreWhitespace(reader);
-                    int count = 0;
-                    BaseNode value = ParseValue(reader, ref count);
-                    // Do we actually care about count??
-                    if (value == null) {
-                        return null;
-                    }
-
-                    string definition = name.ToString();
-
-                    if (Definitions.ContainsKey(definition)) {
-                        Log.Warning("Definition already defined, overwriting");
-                    }
-
-                    if (Registers.ContainsKey(definition)) {
-                        Log.Error("Registers contains object with the same name, can't define a definition with the same name as an object");
-                    }
-
-                    Definitions.Add(definition, value);
-                    return new DummyNode();
-                }
-
-                IgnoreWhitespace(reader);
-                StringBuilder type = ParseIdentifier(reader, "", false);
-                ObjectNode objectNode;
-                string objName = name.ToString();
-                string typeName = type.ToString();
-                if (currentCharacter == ':') {
-                    Advance(reader);
-                    if (currentCharacter != ':') {
-                        LogError("Syntax error");
-                    }
-
-                    Advance(reader);
-                    string functionName;
-                    if (currentCharacter == '(') {
-                        // Empty
-                        Advance(reader);
-                        functionName = objName;
-                    } else {
-                        functionName = ParseIdentifier(reader, "", false).ToString();
-                    }
-
-                    int count = 0;
-                    List<ArgumentNode> args = ParseFuncArgList(reader, ref count);
-                    if (count > maxSpaces) maxSpaces = count;
-                    if (args == null) return null;
-                    objectNode = new ObjectNode() { name = objName, type = typeName, constructor = new FunctionNode() { name = functionName, type = FunctionType.CONSTRUCTOR, args = args.ToArray() } };
-                } else {
-                    objectNode = new ObjectNode() { name = objName, type = typeName, constructor = new FunctionNode() { name = typeName, type = FunctionType.CONSTRUCTOR, args = new ArgumentNode[0] } };
-                }
-                registers++;
-                objectNode.constructor.obj = objectNode;
-                if (Definitions.ContainsKey(objName)) {
-                    Log.Error("Definitions contains a definition with the same name, can't define an object with the same name as a definition");
-                }
-
-                if (Registers.ContainsKey(objName)) {
-                    Log.Warning("Object already defined, overwriting.  Undefined behaviour from now on.");
-                }
-
-                Registers.Add(objName, objectNode);
-                IgnoreWhitespace(reader);
-                if (currentCharacter == '{') {
-                    inBlock = true;
-                    currentVariable = objectNode;
-                    Advance(reader);
-                }
-                return objectNode;
+                return ParseObjectDefinition(reader, name.ToString());
             }
         }
 
@@ -768,7 +788,8 @@ namespace DOML {
             StringBuilder str = new StringBuilder(prefix);
             str.Append(currentCharacter);
             while (Advance(reader)) {
-                if (currentCharacter == '=' || currentCharacter == '(' || currentCharacter == ':' || char.IsWhiteSpace(currentCharacter) || (!allowDot && currentCharacter == '.')) {
+                // @Query?  What symbols do we actually need to check for
+                if (currentCharacter == '=' || currentCharacter == '(' || currentCharacter == ':' || char.IsWhiteSpace(currentCharacter) || (!allowDot && currentCharacter == '.') || currentCharacter == ',') {
                     break;
                 } else if (!char.IsLetter(currentCharacter) && currentCharacter != '_' && (allowDot && currentCharacter != '.')) {
                     // Invalid character
