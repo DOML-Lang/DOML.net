@@ -26,6 +26,108 @@ namespace ReflectionBindings {
         /// <typeparam name="T"> The class to generate from. </typeparam>
         public static void Create<T>() => Create(typeof(T));
 
+        private static void RegisterConstructor(ConstructorInfo info, Type forClass) {
+            ParameterInfo[] parameterInfo = info.GetParameters();
+
+            InstructionRegister.RegisterConstructor($"{forClass.Name}", (InterpreterRuntime runtime, int registerIndex) => {
+                if (runtime.GetObject(registerIndex, out object result)) {
+                    if (parameterInfo.Length > 0) {
+                        object[] objects = new object[parameterInfo.Length];
+                        for (int i = 0; i < parameterInfo.Length; i++)
+                            if (!runtime.Pop(out objects[parameterInfo.Length - 1 - i]))
+                                break;
+
+                        // Since it will break but not assign objects[i] if the pop goes wrong we can just check if it has set it
+                        if (objects[objects.Length - 1] != null) {
+                            if (runtime.Push(info.Invoke(result, objects), true)) {
+                                return;
+                            }
+                        }
+                    } else if (runtime.Push(info.Invoke(result, null), true)) {
+                        return;
+                    }
+                }
+                Log.Error($"{forClass.Name} Constructor failed");
+            }, parameterInfo.Select(x => InstructionRegister.GetParamType(x.ParameterType)).ToArray());
+        }
+
+        private static void RegisterField(FieldInfo info, Type forClass) {
+            InstructionRegister.RegisterGetter(info.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
+                if (!runtime.GetObject(registerIndex, out object result) || !runtime.Push(info.GetValue(result), true))
+                    Log.Error($"{forClass.Name}::{info.Name} Getter Failed");
+            }, new ParamType[0]);
+
+            InstructionRegister.RegisterSetter(info.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
+                if (!runtime.GetObject(registerIndex, out object result) || !runtime.Pop(out object valueToSet))
+                    Log.Error($"{forClass.Name}::{info.Name} Setter Failed");
+                else
+                    info.SetValue(result, valueToSet);
+            }, new ParamType[0]);
+        }
+
+        private static void RegisterProperty(PropertyInfo info, Type forClass) {
+            if (info.CanRead && (info.GetMethod?.IsPublic ?? false)) {
+                InstructionRegister.RegisterGetter(info.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
+                    if (!runtime.GetObject(registerIndex, out object result) || !runtime.Push(info.GetValue(result), true))
+                        Log.Error($"{forClass.Name}::{info.Name} Getter Failed");
+                }, new ParamType[0]);
+            }
+
+            if (info.CanWrite && (info.SetMethod?.IsPublic ?? false)) {
+                InstructionRegister.RegisterSetter(info.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
+                    if (!runtime.GetObject(registerIndex, out object result) || !runtime.Pop(out object valueToSet))
+                        Log.Error($"{forClass.Name}::{info.Name} Setter Failed");
+                    else
+                        info.SetValue(result, valueToSet);
+                }, new ParamType[0]);
+            }
+        }
+
+        public static void RegisterGetter(MethodInfo info, ParameterInfo[] parameters, Type forClass) {
+            InstructionRegister.RegisterGetter(info.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
+                if (runtime.GetObject(registerIndex, out object result)) {
+                    if (parameters.Length > 0) {
+                        object[] objects = new object[parameters.Length];
+                        for (int i = 0; i < parameters.Length; i++)
+                            if (!runtime.Pop(out objects[parameters.Length - 1 - i]))
+                                break;
+
+                        // Since it will break but not assign objects[i] if the pop goes wrong we can just check if it has set it
+                        if (objects[objects.Length - 1] != null) {
+                            if (runtime.Push(info.Invoke(result, objects), true)) {
+                                return;
+                            }
+                        }
+                    } else if (runtime.Push(info.Invoke(result, null), true)) {
+                        return;
+                    }
+                }
+                Log.Error($"{forClass.Name}::{info.Name} Function failed");
+            }, parameters.Select(x => InstructionRegister.GetParamType(x.ParameterType)).ToArray());
+        }
+
+        public static void RegisterSetter(MethodInfo info, ParameterInfo[] parameters, Type forClass) {
+            InstructionRegister.RegisterSetter(info.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
+                if (runtime.GetObject(registerIndex, out object result)) {
+                    if (parameters.Length > 0) {
+                        object[] objects = new object[parameters.Length];
+
+                        for (int i = 0; i < parameters.Length; i++)
+                            if (!runtime.Pop(out objects[parameters.Length - 1 - i]))
+                                break;
+
+                        // Since it will break but not assign objects[i] if the pop goes wrong we can just check if it has set it
+                        if (objects[objects.Length - 1] != null) {
+                            info.Invoke(result, objects);
+                        }
+                    } else {
+                        info.Invoke(result, null);
+                    }
+                    Log.Error($"{forClass.Name}::{info.Name} Function failed");
+                }
+            }, parameters.Select(x => InstructionRegister.GetParamType(x.ParameterType)).ToArray());
+        }
+
         /// <summary>
         /// Create from a given class type.
         /// </summary>
@@ -37,122 +139,23 @@ namespace ReflectionBindings {
             IEnumerable<MethodInfo> methodInfo = forClass.GetRuntimeMethods();
 
             foreach (ConstructorInfo info in constructorInfo) {
-                ConstructorInfo copyInfo = info;
-                ParameterInfo[] parameterInfo = copyInfo.GetParameters();
-
-                Action<InterpreterRuntime, int> action = (InterpreterRuntime runtime, int registerIndex) => {
-                    if (runtime.GetObject(registerIndex, out object result)) {
-                        if (parameterInfo.Length > 0) {
-                            object[] objects = new object[parameterInfo.Length];
-                            for (int i = 0; i < parameterInfo.Length; i++)
-                                if (!runtime.Pop(out objects[parameterInfo.Length - 1 - i]))
-                                    break;
-
-                            // Since it will break but not assign objects[i] if the pop goes wrong we can just check if it has set it
-                            if (objects[objects.Length - 1] != null) {
-                                if (runtime.Push(copyInfo.Invoke(result, objects), true)) {
-                                    return;
-                                }
-                            }
-                        } else if (runtime.Push(copyInfo.Invoke(result, null), true)) {
-                            return;
-                        }
-                    }
-
-                    Log.Error($"{forClass.Name} Constructor failed");
-                };
-
-                InstructionRegister.RegisterConstructor($"{forClass.Name}", action,
-                    parameterInfo.Select(x => InstructionRegister.GetParamType(x.ParameterType)).ToArray());
+                RegisterConstructor(info, forClass);
             }
 
             foreach (FieldInfo info in fieldInfo) {
-                FieldInfo copyInfo = info;
-                InstructionRegister.RegisterGetter(copyInfo.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
-                    if (!runtime.GetObject(registerIndex, out object result) || !runtime.Push(copyInfo.GetValue(result), true))
-                        Log.Error($"{forClass.Name}::{info.Name} Getter Failed");
-                }, new ParamType[0]);
-
-                InstructionRegister.RegisterSetter(copyInfo.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
-                    if (!runtime.GetObject(registerIndex, out object result) || !runtime.Pop(out object valueToSet))
-                        Log.Error($"{forClass.Name}::{info.Name} Setter Failed");
-                    else
-                        info.SetValue(result, valueToSet);
-                }, new ParamType[0]);
+                RegisterField(info, forClass);
             }
 
             foreach (PropertyInfo info in propertyInfo) {
-                PropertyInfo copyInfo = info;
-
-                if (info.CanRead && (info.GetMethod?.IsPublic ?? false)) {
-                    InstructionRegister.RegisterGetter(copyInfo.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
-                        if (!runtime.GetObject(registerIndex, out object result) || !runtime.Push(copyInfo.GetValue(result), true))
-                            Log.Error($"{forClass.Name}::{info.Name} Getter Failed");
-                    }, new ParamType[0]);
-                }
-
-                if (info.CanWrite && (info.SetMethod?.IsPublic ?? false)) {
-                    InstructionRegister.RegisterSetter(copyInfo.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
-                        if (!runtime.GetObject(registerIndex, out object result) || !runtime.Pop(out object valueToSet))
-                            Log.Error($"{forClass.Name}::{info.Name} Setter Failed");
-                        else
-                            info.SetValue(result, valueToSet);
-                    }, new ParamType[0]);
-                }
+                RegisterProperty(info, forClass);
             }
 
             foreach (MethodInfo info in methodInfo) {
-                MethodInfo copyInfo = info;
-                ParameterInfo[] parameterInfo = copyInfo.GetParameters();
-
-                if (copyInfo.ReturnType != typeof(void)) {
-                    // Getter
-                    Action<InterpreterRuntime, int> action = (InterpreterRuntime runtime, int registerIndex) => {
-                        if (runtime.GetObject(registerIndex, out object result)) {
-                            if (parameterInfo.Length > 0) {
-                                object[] objects = new object[parameterInfo.Length];
-                                for (int i = 0; i < parameterInfo.Length; i++)
-                                    if (!runtime.Pop(out objects[parameterInfo.Length - 1 - i]))
-                                        break;
-
-                                // Since it will break but not assign objects[i] if the pop goes wrong we can just check if it has set it
-                                if (objects[objects.Length - 1] != null) {
-                                    if (runtime.Push(copyInfo.Invoke(result, objects), true)) {
-                                        return;
-                                    }
-                                }
-                            } else if (runtime.Push(copyInfo.Invoke(result, null), true)) {
-                                return;
-                            }
-                        }
-
-                        Log.Error($"{forClass.Name}::{copyInfo.Name} Function failed");
-                    };
-
-                    InstructionRegister.RegisterGetter(info.Name + "::" + forClass.Name, action,
-                        parameterInfo.Select(x => InstructionRegister.GetParamType(x.ParameterType)).ToArray());
+                ParameterInfo[] parameterInfo = info.GetParameters();
+                if (info.ReturnType != typeof(void)) {
+                    RegisterGetter(info, parameterInfo, forClass);
                 } else {
-                    // Setter
-                    InstructionRegister.RegisterSetter(info.Name + "::" + forClass.Name, (InterpreterRuntime runtime, int registerIndex) => {
-                        if (runtime.GetObject(registerIndex, out object result)) {
-                            if (parameterInfo.Length > 0) {
-                                object[] objects = new object[parameterInfo.Length];
-
-                                for (int i = 0; i < parameterInfo.Length; i++)
-                                    if (!runtime.Pop(out objects[parameterInfo.Length - 1 - i]))
-                                        break;
-
-                                // Since it will break but not assign objects[i] if the pop goes wrong we can just check if it has set it
-                                if (objects[objects.Length - 1] != null) {
-                                    copyInfo.Invoke(result, objects);
-                                }
-                            } else {
-                                copyInfo.Invoke(result, null);
-                            }
-
-                            Log.Error($"{forClass.Name}::{copyInfo.Name} Function failed");
-                        }
-                    }, parameterInfo.Select(x => InstructionRegister.GetParamType(x.ParameterType)).ToArray());
+                    RegisterSetter(info, parameterInfo, forClass);
                 }
             }
         }
