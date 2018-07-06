@@ -484,6 +484,40 @@ namespace DOML {
             return new ValueNode() { obj = result };
         }
 
+        private BaseNode ParseMap(TextReader reader, ref int count) {
+            MapNode map = new MapNode();
+            while (currentCharacter != '}' && Advance(reader)) {
+                IgnoreWhitespace(reader);
+                BaseNode key = ParseValue(reader, ref count);
+                if (key == null) return null;
+
+                IgnoreWhitespace(reader);
+                if (currentCharacter != ':') {
+                    LogError("Expecting ':'");
+                    return null;
+                }
+                Advance(reader);
+                IgnoreWhitespace(reader);
+
+                BaseNode value = ParseValue(reader, ref count);
+                if (value == null) return null;
+                IgnoreWhitespace(reader);
+                if (currentCharacter != ',' && currentCharacter != '}') {
+                    LogError("Expecting either ',' or '}'");
+                    return null;
+                }
+
+                map.map.Add(key, value);
+            }
+            if (currentCharacter != '}') {
+                LogError("No terminating '}'");
+            }
+
+            Advance(reader);
+            IgnoreWhitespace(reader);
+            return map;
+        }
+
         // @TODO: refactor this more its too long
         private BaseNode ParseObjectReference(TextReader reader, ref int count, bool possibleFuncArg = false) {
             // @TODO: support #NoKeywords
@@ -576,6 +610,8 @@ namespace DOML {
             count++;
             if (currentCharacter == '[') {
                 return ParseArray(reader, ref count);
+            } else if (currentCharacter == '{') {
+                return ParseMap(reader, ref count);
             } else if (char.IsDigit(currentCharacter)) {
                 return ParseNumber(reader, ref count);
             } else if (currentCharacter == '$') {
