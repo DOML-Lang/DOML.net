@@ -18,6 +18,15 @@ namespace DOML.AST {
         public const char BAR = '═';
         public const char V_BAR = '║';
         public const string INDENT = " ";
+        public const string BRANCH_INIT = "╦";
+
+        public static string Print(TextWriter writer, bool last, bool children, string indent) {
+            writer.Write(indent);
+            writer.Write(last ? BRANCH_LAST : BRANCH);
+            writer.Write(BAR);
+            if (children) writer.Write(BRANCH_INIT);
+            return indent + (last ? INDENT + INDENT : V_BAR + INDENT);
+        }
 
         /// <summary>
         /// Just a nice helper to print out the right indents.
@@ -26,10 +35,11 @@ namespace DOML.AST {
         /// <param name="last"></param>
         /// <param name="indent"></param>
         /// <param name="next"></param>
-        public static void Print(TextWriter writer, bool last, string indent, BaseNode next) {
+        public static void Print(TextWriter writer, bool last, bool children, string indent, BaseNode next) {
             writer.Write(indent);
             writer.Write(last ? BRANCH_LAST : BRANCH);
             writer.Write(BAR);
+            if (children) writer.Write(BRANCH_INIT);
             next?.Print(writer, indent + (last ? INDENT + INDENT : V_BAR + INDENT));
         }
     }
@@ -132,7 +142,7 @@ namespace DOML.AST {
         public void Print(TextWriter writer) {
             writer.WriteLine("Top Level");
             for (int i = 0; i < children.Length; i++) {
-                Symbol.Print(writer, i == children.Length - 1, "", children[i]);
+                Symbol.Print(writer, i == children.Length - 1, true, "", children[i]);
             }
         }
 
@@ -158,7 +168,7 @@ namespace DOML.AST {
                 InstructionWriter.WriteInstructionOp(writer, Opcodes.ARRAY_CPY, simple);
                 writer.Write($"{typeID} {values.Count}");
                 foreach (BaseNode node in values) {
-                    writer.Write($" {(node as ValueNode).obj.ToString()}");
+                    writer.Write($" {(node as ValueNode).obj}");
                 }
                 writer.WriteLine();
             } else {
@@ -172,14 +182,14 @@ namespace DOML.AST {
             yield return new Instruction(Opcodes.PUSH_ARRAY, new object[] { typeID, values.Count });
             if (values[0] is ValueNode) {
                 // Simpler for 1D
-                List<object> parameters = new List<object>(values.Count + 2) {
-                    typeID, values.Count
-                };
+                object[] parameters = new object[values.Count + 100];
+                parameters[0] = typeID;
+                parameters[1] = values.Count;
 
                 for (int i = 0; i < values.Count; i++) {
-                    parameters.Add(((ValueNode)values[i]).obj);
+                    parameters[2 + i] = ((ValueNode)values[i]).obj;
                 }
-                yield return new Instruction(Opcodes.ARRAY_CPY, parameters.ToArray());
+                yield return new Instruction(Opcodes.ARRAY_CPY, parameters);
             } else {
                 throw new NotImplementedException();
             }
@@ -188,7 +198,7 @@ namespace DOML.AST {
         public override void Print(TextWriter writer, string indent) {
             writer.WriteLine($"{InstructionWriter.GetTypeID(values[0], true)}[{values.Count}]");
             for (int i = 0; i < values.Count; i++) {
-                Symbol.Print(writer, i == values.Count - 1, indent, values[i]);
+                Symbol.Print(writer, i == values.Count - 1, false, indent, values[i]);
             }
         }
 
@@ -201,15 +211,69 @@ namespace DOML.AST {
         public Dictionary<BaseNode, BaseNode> map = new Dictionary<BaseNode, BaseNode>();
 
         public override void BasicCodegen(TextWriter writer, bool simple) {
-            throw new NotImplementedException();
+            InstructionWriter.WriteInstructionOp(writer, Opcodes.PUSH_MAP, simple);
+            KeyValuePair<BaseNode, BaseNode> firstkvp = map.First();
+            // Optimisation if they all are value nodes
+            if (firstkvp.Key is ValueNode firstKey && firstkvp.Value is ValueNode firstValue) {
+                string keyTypeID = InstructionWriter.GetTypeID(firstKey.obj, simple);
+                string valueTypeID = InstructionWriter.GetTypeID(firstValue.obj, simple);
+
+                writer.WriteLine($"{keyTypeID} {valueTypeID}");
+                InstructionWriter.WriteInstructionOp(writer, Opcodes.QUICK_SET_MAP, simple);
+                writer.Write($"{keyTypeID} {valueTypeID}");
+                foreach (KeyValuePair<BaseNode, BaseNode> kvp in map) {
+                    ValueNode key = (ValueNode)kvp.Key;
+                    ValueNode value = (ValueNode)kvp.Value;
+                    writer.Write($" {key.obj} {value.obj}");
+                }
+                writer.WriteLine();
+            } else {
+                throw new NotImplementedException();
+            }
         }
 
         public override IEnumerable<Instruction> GetInstructions() {
-            throw new NotImplementedException();
+            KeyValuePair<BaseNode, BaseNode> firstkvp = map.First();
+            // Optimisation if they all are value nodes
+            if (firstkvp.Key is ValueNode firstKey && firstkvp.Value is ValueNode firstValue) {
+                string keyTypeID = InstructionWriter.GetTypeID(firstKey.obj, false);
+                string valueTypeID = InstructionWriter.GetTypeID(firstValue.obj, false);
+                yield return new Instruction(Opcodes.PUSH_MAP, new object[] { keyTypeID, valueTypeID });
+
+                object[] parameters = new object[map.Count*2 + 2];
+                parameters[0] = keyTypeID;
+                parameters[1] = valueTypeID;
+
+                int i = 2;
+                foreach (KeyValuePair<BaseNode, BaseNode> kvp in map) {
+                    ValueNode key = (ValueNode)kvp.Key;
+                    ValueNode value = (ValueNode)kvp.Value;
+                    parameters[i++] = key.obj;
+                    parameters[i++] = value.obj;
+                }
+                yield return new Instruction(Opcodes.QUICK_SET_MAP, parameters);
+            } else {
+                throw new NotImplementedException();
+            }
         }
 
         public override void Print(TextWriter writer, string indent) {
-            writer.WriteLine(map.ToString());
+            KeyValuePair<BaseNode, BaseNode> firstkvp = map.First();
+            // Optimisation if they all are value nodes
+            if (firstkvp.Key is ValueNode firstKey && firstkvp.Value is ValueNode firstValue) {
+
+                writer.WriteLine($"[{InstructionWriter.GetTypeID(firstKey.obj, true)} : {InstructionWriter.GetTypeID(firstValue.obj, true)}]({map.Count})");
+                int i = 1;
+                foreach (KeyValuePair<BaseNode, BaseNode> kvp in map) {
+                    string newIndent = Symbol.Print(writer, i == map.Count, true, indent);
+                    writer.WriteLine("Key Value Pair");
+                    Symbol.Print(writer, false, false, newIndent, kvp.Key);
+                    Symbol.Print(writer, true, false, newIndent, kvp.Value);
+                    i++;
+                }
+            } else {
+                throw new NotImplementedException();
+            }
         }
 
         public override bool Verify(TextWriter err) {
@@ -292,7 +356,7 @@ namespace DOML.AST {
                 value.Print(writer, indent);
             } else {
                 writer.WriteLine(name);
-                Symbol.Print(writer, true, indent, value);
+                Symbol.Print(writer, true, false, indent, value);
             }
         }
 
@@ -324,7 +388,7 @@ namespace DOML.AST {
             writer.WriteLine(type.ToString() + " : " + obj + "." + name);
             for (int i = 0; i < args.Length; i++) {
                 bool last = (i == args.Length - 1);
-                Symbol.Print(writer, last, indent, args[i]);
+                Symbol.Print(writer, last, args[i].name != null || !(args[i].value is ValueNode), indent, args[i]);
             }
         }
 
@@ -362,7 +426,7 @@ namespace DOML.AST {
 
         public override void Print(TextWriter writer, string indent) {
             writer.WriteLine(name + " : " + type);
-            Symbol.Print(writer, true, indent, constructor);
+            Symbol.Print(writer, true, constructor.args.Length > 0, indent, constructor);
         }
 
         public override bool Verify(TextWriter err) {
