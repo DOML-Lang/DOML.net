@@ -93,3 +93,7 @@ While stylecop will allow it anywhere (except for cases where you can't see the 
 I'm quite happy to change the style guide for this project if enough people have valid criticisms :) and not just 'I prefer it this way'.
 
 It is also highly recommended that you install [StyleCop](https://github.com/TeamPorcupine/ProjectPorcupine/wiki/StyleCop), which will automatically point out any deviations from the project's style guidelines. Any deviations in your code which can be tracked by StyleCop will result in the rejection of your Pull Request.
+
+## SourceMonitor
+
+I use source monitor to long term track the effects of changes and as a way to measure refactors, you shouldn't add any new checkpoints to the commit as I'll do those after refactors or prior to releases.  There are versions which you can use wine with (and even a version that doesn't require wine) to use it on Mac (which I use when developing on mac), you can also just generally check your code with any complexity checker as that is the main metric (and while we do use the modified variant for source monitor it is pretty close to the normal metric).
