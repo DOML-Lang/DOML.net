@@ -11,9 +11,15 @@ namespace StaticBindings
 {
 	public static partial class ____ColorStaticBindings____
 	{
-		public static void NewColorEmpty(InterpreterRuntime runtime, int registerIndex)
+		public static void NewColor(InterpreterRuntime runtime, int registerIndex)
 		{
 			if (!runtime.SetObject(new Test.UnitTests.Color(), registerIndex))
+				Log.Error("Color Constructor failed");
+		}
+
+		public static void NewNormalized(InterpreterRuntime runtime, int registerIndex)
+		{
+			if (!runtime.Pop(out System.Single a3) || !runtime.Pop(out System.Single a2) || !runtime.Pop(out System.Single a1) || !runtime.SetObject(new Test.UnitTests.Color(a1,a2,a3), registerIndex))
 				Log.Error("Color Constructor failed");
 		}
 
@@ -103,38 +109,40 @@ namespace StaticBindings
 
 		public static void RegisterCalls()
 		{
-			InstructionRegister.RegisterConstructor("Color", NewColorEmpty, new ParamType[] {  });
-			InstructionRegister.RegisterGetter("R::Color", GetFieldR, new ParamType[0]);
-			InstructionRegister.RegisterSetter("R::Color", SetFieldR, new ParamType[0]);
-			InstructionRegister.RegisterGetter("G::Color", GetFieldG, new ParamType[0]);
-			InstructionRegister.RegisterSetter("G::Color", SetFieldG, new ParamType[0]);
-			InstructionRegister.RegisterGetter("B::Color", GetFieldB, new ParamType[0]);
-			InstructionRegister.RegisterSetter("B::Color", SetFieldB, new ParamType[0]);
-			InstructionRegister.RegisterGetter("Name::Color", GetFieldName, new ParamType[0]);
-			InstructionRegister.RegisterSetter("Name::Color", SetFieldName, new ParamType[0]);
-			InstructionRegister.RegisterSetter("RGB::Color", SetRGB, new ParamType[] { ParamType.INT, ParamType.INT, ParamType.INT });
-			InstructionRegister.RegisterSetter("Normalized::Color", SetNormalized, new ParamType[] { ParamType.FLT, ParamType.FLT, ParamType.FLT });
-			InstructionRegister.RegisterSetter("Hex::Color", SetHex, new ParamType[] { ParamType.INT });
-			InstructionRegister.RegisterGetter("Hex::Color", GetHex, new ParamType[] {  });
-			InstructionRegister.RegisterGetter("Normalized::Color", GetNormalized, new ParamType[] {  });
+			InstructionRegister.RegisterConstructor("Color::Color", NewColor, new ParamType[] {  });
+			InstructionRegister.RegisterConstructor("Color::Normalized", NewNormalized, new ParamType[] { ParamType.FLT, ParamType.FLT, ParamType.FLT });
+			InstructionRegister.RegisterGetter("Color::R", GetFieldR, new ParamType[0]);
+			InstructionRegister.RegisterSetter("Color::R", SetFieldR, new ParamType[0]);
+			InstructionRegister.RegisterGetter("Color::G", GetFieldG, new ParamType[0]);
+			InstructionRegister.RegisterSetter("Color::G", SetFieldG, new ParamType[0]);
+			InstructionRegister.RegisterGetter("Color::B", GetFieldB, new ParamType[0]);
+			InstructionRegister.RegisterSetter("Color::B", SetFieldB, new ParamType[0]);
+			InstructionRegister.RegisterGetter("Color::Name", GetFieldName, new ParamType[0]);
+			InstructionRegister.RegisterSetter("Color::Name", SetFieldName, new ParamType[0]);
+			InstructionRegister.RegisterSetter("Color::RGB", SetRGB, new ParamType[] { ParamType.INT, ParamType.INT, ParamType.INT });
+			InstructionRegister.RegisterSetter("Color::Normalized", SetNormalized, new ParamType[] { ParamType.FLT, ParamType.FLT, ParamType.FLT });
+			InstructionRegister.RegisterSetter("Color::Hex", SetHex, new ParamType[] { ParamType.INT });
+			InstructionRegister.RegisterGetter("Color::Hex", GetHex, new ParamType[] {  });
+			InstructionRegister.RegisterGetter("Color::Normalized", GetNormalized, new ParamType[] {  });
 		}
 
 		public static void UnRegisterCalls()
 		{
-			InstructionRegister.UnRegisterConstructor("Color");
-			InstructionRegister.UnRegisterGetter("R::Color");
-			InstructionRegister.UnRegisterSetter("R::Color");
-			InstructionRegister.UnRegisterGetter("G::Color");
-			InstructionRegister.UnRegisterSetter("G::Color");
-			InstructionRegister.UnRegisterGetter("B::Color");
-			InstructionRegister.UnRegisterSetter("B::Color");
-			InstructionRegister.UnRegisterGetter("Name::Color");
-			InstructionRegister.UnRegisterSetter("Name::Color");
-			InstructionRegister.UnRegisterSetter("RGB::Color");
-			InstructionRegister.UnRegisterSetter("Normalized::Color");
-			InstructionRegister.UnRegisterSetter("Hex::Color");
-			InstructionRegister.UnRegisterGetter("Hex::Color");
-			InstructionRegister.UnRegisterGetter("Normalized::Color");
+			InstructionRegister.UnRegisterConstructor("Color::Color");
+			InstructionRegister.UnRegisterConstructor("Color::Normalized");
+			InstructionRegister.UnRegisterGetter("Color::R");
+			InstructionRegister.UnRegisterSetter("Color::R");
+			InstructionRegister.UnRegisterGetter("Color::G");
+			InstructionRegister.UnRegisterSetter("Color::G");
+			InstructionRegister.UnRegisterGetter("Color::B");
+			InstructionRegister.UnRegisterSetter("Color::B");
+			InstructionRegister.UnRegisterGetter("Color::Name");
+			InstructionRegister.UnRegisterSetter("Color::Name");
+			InstructionRegister.UnRegisterSetter("Color::RGB");
+			InstructionRegister.UnRegisterSetter("Color::Normalized");
+			InstructionRegister.UnRegisterSetter("Color::Hex");
+			InstructionRegister.UnRegisterGetter("Color::Hex");
+			InstructionRegister.UnRegisterGetter("Color::Normalized");
 		}
 	}
 }

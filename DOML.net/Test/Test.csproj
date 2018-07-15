@@ -38,4 +38,18 @@
   <ItemGroup>
     <Compile Remove="test.Designer.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="CompactOutput.IR">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Output.IR">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="test.doml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="StaticBindings\" />
+  </ItemGroup>
 </Project>

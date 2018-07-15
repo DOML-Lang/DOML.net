@@ -1,3 +1,43 @@
-; This is the resulting bytecode from the file given
-; This bytecode will be overriden if new bytecode is generated.
-2 4, 3 4, 1 "This is a comment", 1 "Construct a new System.Color", 6 System.Color, 7 0, 12 255, 12 64, 12 128, 11 0, 4 System.Color::RGB, 1 "Implicit 'array'", 6 System.Color, 7 1, 12 1, 13 0.25, 13 0.5, 1 "You can have trailing commas", 11 1, 4 System.Color::RGB.Normalised, 6 System.Color, 7 2, 12 16728192, 11 2, 4 System.Color::RGB.Hex, 15 "OtherName", 11 2, 4 System.Color::Name, 1 " Multi Line Comment Blocks are great ", 6 System.Color, 7 3, 11 0, 5 System.Color::R, 11 0, 5 System.Color::G, 11 0, 5 System.Color::B, 11 3, 4 System.Color::RGB, 15 "Copy", 11 3, 4 System.Color::Name 
+#IR {
+  1 7 3
+  10 0 Color::Color
+  11 0 255
+  11 0 64
+  11 0 128
+  11 6 0 3
+  35 6 0 1 2 3
+  11 6 0 3
+  35 6 0 1 2 3
+  11 7 0 1
+  35 7 0 1 1 5 2 9 hey 5
+  11 6 0 3
+  35 6 0 1 2 3
+  12 0 Color::RGB
+  11 1 1
+  11 1 0.25
+  11 1 0.5
+  10 1 Color::Normalized
+  11 3 Bob
+  12 1 Color::Name
+  10 2 Color::Color
+  11 3 X
+  12 2 Color::Name
+  11 0 50
+  12 0 Color::R
+  11 0 128
+  12 0 Color::G
+}
+::G 1
+}
+1
+}
+12 0 Color::G 1
+}
+1
+  PUSH 0 1 50
+  CALL 0 Color R 1
+  PUSH 0 1 128
+  CALL 0 Color G 1
+}
+
+}

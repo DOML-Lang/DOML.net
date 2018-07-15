@@ -25,7 +25,7 @@ namespace DOML.AST {
             }
         }
 
-        public override MacroNode ParseNode(TextReader reader, Parser parser) {
+        public override MacroNode ParseNode(Parser parser) {
             // We need parsing IR to exist in parser first
             throw new NotImplementedException();
         }
@@ -47,8 +47,8 @@ namespace DOML.AST {
             writer.WriteLine();
         }
 
-        public override MacroNode ParseNode(TextReader reader, Parser parser) {
-            parser.IgnoreWhitespace(reader);
+        public override MacroNode ParseNode(Parser parser) {
+            parser.tok.IgnoreWhitespace();
             return new DeinitMacroNode();
         }
 

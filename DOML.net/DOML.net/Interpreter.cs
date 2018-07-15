@@ -8,10 +8,19 @@
 #endregion
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using DOML.Logger;
 
 namespace DOML.IR {
+    public enum State {
+        VEC,
+        MAP,
+        LITERAL,
+        OBJ,
+    }
+
     /// <summary>
     /// Opcodes for DOML IR.
     /// </summary>
@@ -34,12 +43,6 @@ namespace DOML.IR {
         /// De-initialises the stack and regsiters.
         /// </summary>
         DE_INIT = 2,
-
-        /// <summary>
-        /// `create_type(id: int, depth: int, (CollectionID: CollectionTypeID, Type: TypeID)[depth])`
-        /// Creates a complex type.
-        /// </summary>
-        CREATE_TYPE = 3,
         #endregion
         #region STACK
         /// <summary>
@@ -53,10 +56,10 @@ namespace DOML.IR {
         /// Pushes a set of objects onto the stack.
         /// </summary>
         PUSH = 11,
-        CALL_N = 12,
+        CALL = 12,
         CALL_STACK = 13,
         POP = 14,
-        GET_N = 15,
+        GET = 15,
         GET_STACK = 16,
         #endregion
         #region QUICK_STACK
@@ -64,25 +67,17 @@ namespace DOML.IR {
         QUICK_CALL = 21,
         P_CALL = 22, // UNCONFIRMED
         P_NEW_OBJ = 23, // UNCONFIRMED
-        QUICK_GET = 24,
-        DUMB_GET = 25,
+        P_GET = 24,
+        QUICK_GET = 25,
         #endregion
-        #region ARRAY
-        PUSH_ARRAY = 30,
-        SET_ARRAY = 31,
-        GET_ARRAY = 32,
-        ARRAY_CPY = 33,
-        COMPACT = 34,
-        #endregion
-        #region MAPS
-        PUSH_MAP = 40,
-        PUSH_COLLECTION = 41,
-        SET_MAP = 42,
-        SET_COLLECTION = 43,
-        QUICK_SET_MAP = 44,
-        ZIP_MAP = 45,
-        GET_MAP = 46,
-        GET_COLLECTION = 47,
+        #region COLLECTIONS
+        SET_INDEX = 30,
+        SET_INDEX_STACK = 31,
+        QUICK_SET_INDEX = 32,
+        GET_INDEX = 33,
+        QUICK_GET_INDEX = 34,
+        QUICK_CPY = 35,
+        COMPACT = 36,
         #endregion
     }
 
@@ -143,7 +138,7 @@ namespace DOML.IR {
             t3 = (T3)instruction.Parameters[2];
         }
 
-        private Type GetTypeForParamType(ParamType type) {
+        public static Type GetTypeForParamType(ParamType type) {
             switch (type) {
             case ParamType.INT: return typeof(long);
             case ParamType.FLT: return typeof(double);
@@ -153,9 +148,24 @@ namespace DOML.IR {
             case ParamType.OBJ: return typeof(object);
             case ParamType.MAP:
             case ParamType.VEC:
-            throw new InvalidOperationException("Can't create 'pushArray' from collection type.");
+            throw new InvalidOperationException("Internal Error: GetTypeForParamType shouldn't be called for Maps/Vectors");
             default:
             throw new NotImplementedException();
+            }
+        }
+
+        public static Type CreateType(IEnumerator types, ref int len) {
+            // Work back to front
+            types.MoveNext();
+            len++;
+            if ((ParamType)types.Current == ParamType.VEC) {
+                return CreateType(types, ref len).MakeArrayType();
+            } else if ((ParamType)types.Current == ParamType.MAP) {
+                Type keyType = CreateType(types, ref len);
+                Type valueType = CreateType(types, ref len);
+                return typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
+            } else {
+                return GetTypeForParamType((ParamType)types.Current);
             }
         }
 
@@ -177,28 +187,41 @@ namespace DOML.IR {
             Runtime.ClearRegisters();
             Runtime.ClearSpace();
             break;
-            case Opcodes.CREATE_TYPE:
-            // @TODO: Support complex types
-            throw new NotImplementedException();
             #endregion
             #region Push Instructions
             case Opcodes.NEW_OBJ: {
-                ParameterHelper(instruction, out FunctionDefinition constructor, out int register);
+                ParameterHelper(instruction, out int register, out FunctionDefinition constructor);
                 constructor.action(Runtime, register);
                 break;
             }
             case Opcodes.PUSH: {
-                ParameterHelper(instruction, out int count);
-                // @FIXME: single check
-                for (int i = 0; i < count; i++) {
-                    if (!Runtime.Push(instruction.Parameters[2 + i], true)) {
-                        Log.Error("Invalid Push");
+                int len = 0;
+                Type type = CreateType(instruction.Parameters.GetEnumerator(), ref len);
+                if (type.IsArray) {
+                    // Handle Array
+                    if (len != instruction.Parameters.Length - 1 || !Runtime.Push(Array.CreateInstance(type, (int)instruction.Parameters[len]), true)) {
+                        Log.Error("Invalid Push Array");
                         return;
+                    }
+                } else if (type.IsConstructedGenericType) {
+                    // Is Map
+                    if (!Runtime.Push(Activator.CreateInstance(type), true)) {
+                        Log.Error("Invalid Push Map");
+                        return;
+                    }
+                } else {
+                    // Standard push
+                    // @FIXME: single check (in terms of required size)
+                    for (int i = 1; i < instruction.Parameters.Length; i++) {
+                        if (!Runtime.Push(instruction.Parameters[i], true)) {
+                            Log.Error("Invalid Push Value");
+                            return;
+                        }
                     }
                 }
                 break;
             }
-            case Opcodes.CALL_N: {
+            case Opcodes.CALL: {
                 ParameterHelper(instruction, out FunctionDefinition callee, out int register);
                 callee.action(Runtime, register);
                 break;
@@ -223,7 +246,7 @@ namespace DOML.IR {
                 }
                 break;
             }
-            case Opcodes.GET_N: {
+            case Opcodes.GET: {
                 ParameterHelper(instruction, out int register, out FunctionDefinition func);
                 func.action(Runtime, register);
                 break;
@@ -246,59 +269,84 @@ namespace DOML.IR {
             case Opcodes.P_CALL:
             case Opcodes.P_NEW_OBJ:
             case Opcodes.QUICK_GET:
-            case Opcodes.DUMB_GET:
             throw new NotImplementedException();
             #endregion
-            #region Array Instructions
-            case Opcodes.PUSH_ARRAY: {
-                ParameterHelper(instruction, out ParamType type, out int len);
-                if (!Runtime.Push(Array.CreateInstance(GetTypeForParamType(type), len), true)) {
-                    Log.Error("Invalid Push Array");
-                    return;
-                }
-                break;
-            }
-            case Opcodes.SET_ARRAY: {
-                if (!Runtime.Pop(out object value) || !Runtime.Peek(out Array array)) {
-                    Log.Error("Invalid set array");
-                    return;
-                }
+            #region Collections
+            case Opcodes.SET_INDEX: {
+                ParameterHelper(instruction, out State state);
+                if (state == State.MAP) {
+                    object value = instruction.Parameters[instruction.Parameters.Length-1];
+                    if (!Runtime.Pop(out IDictionary result)) {
+                        Log.Error("Invalid set map");
+                        return;
+                    }
 
-                array.SetValue(value, (int)instruction.Parameters[0]);
-                break;
-            }
-            case Opcodes.GET_ARRAY: {
-                if (!Runtime.Peek(out Array array) || !Runtime.Push(array.GetValue((int)instruction.Parameters[0]), true)) {
-                    Log.Error("Invalid get array");
-                    return;
-                }
-                break;
-            }
-            case Opcodes.ARRAY_CPY: {
-                if (!Runtime.Pop(out Array array)) {
-                    Log.Error("Invalid set array");
-                    return;
-                }
+                    for (int i = 1; i < instruction.Parameters.Length - 2; i++) {
+                        result = (IDictionary)result[instruction.Parameters[i]];
+                    }
+                    result[instruction.Parameters[instruction.Parameters.Length - 2]] = value;
+                } else if (state == State.VEC) {
+                    if (!Runtime.Peek(out Array array)) {
+                        Log.Error("Invalid set array");
+                        return;
+                    }
 
-                // Maybe we can't always do this?
-                instruction.Parameters.CopyTo(array, 0);
+                    int lastIndex = instruction.Parameters.Length - 1;
+                    array.SetValue(instruction.Parameters[lastIndex], instruction.Parameters.Skip(1).Take(lastIndex).Cast<int>().ToArray());
+                } else {
+                    Log.Error("SetIndex only valid on collections");
+                    return;
+                }
+                break;
+            }
+            case Opcodes.QUICK_SET_INDEX:
+            case Opcodes.SET_INDEX_STACK:
+            throw new NotImplementedException();
+            case Opcodes.GET_INDEX: {
+                ParameterHelper(instruction, out State state);
+                if (state == State.MAP) {
+                    if (!Runtime.Pop(out IDictionary result)) {
+                        Log.Error("Invalid Get Map");
+                        return;
+                    }
+                    for (int i = 0; i < instruction.Parameters.Length - 2; i++) {
+                        result = (IDictionary)result[instruction.Parameters[i]];
+                    }
+                    if (!Runtime.Push(result[instruction.Parameters[instruction.Parameters.Length - 2]], true)) {
+                        Log.Error("Invalid Get Map");
+                    }
+                } else if (state == State.VEC) {
+                    if (!Runtime.Peek(out Array array) || !Runtime.Push(array.GetValue(instruction.Parameters.Cast<int>().ToArray()), true)) {
+                        Log.Error("Invalid get array");
+                        return;
+                    }
+                } else {
+                    Log.Error("SetIndex only valid on collections");
+                    return;
+                }
+                break;
+            }
+            case Opcodes.QUICK_CPY: {
+                ParameterHelper(instruction, out State state);
+                if (state == State.MAP) {
+                    throw new NotImplementedException("QuickCpy not implemented for maps");
+                } else if (state == State.VEC) {
+                    if (!Runtime.Pop(out Array array)) {
+                        Log.Error("Invalid set array");
+                        return;
+                    }
+                    // Maybe we can't always do this?
+                    instruction.Parameters.CopyTo(array, 1);
+                } else {
+                    Log.Error("SetIndex only valid on collections");
+                    return;
+                }
                 break;
             }
             case Opcodes.COMPACT: {
                 // @TODO
-                break;
+                throw new NotImplementedException("Compact not implemented");
             }
-            #endregion
-            #region Map Instructions
-            case Opcodes.PUSH_MAP:
-            case Opcodes.PUSH_COLLECTION:
-            case Opcodes.SET_MAP:
-            case Opcodes.SET_COLLECTION:
-            case Opcodes.QUICK_SET_MAP:
-            case Opcodes.ZIP_MAP:
-            case Opcodes.GET_MAP:
-            case Opcodes.GET_COLLECTION:
-            throw new NotImplementedException("Maps aren't implemented");
             #endregion
             default:
             throw new NotImplementedException("Option not implemented");

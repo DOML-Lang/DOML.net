@@ -84,9 +84,9 @@ namespace DOML.AST {
 
         public static void WriteInstructionOp(TextWriter writer, Opcodes opcode, bool simple) {
             if (simple) {
-                writer.Write($"{INDENT}{Enum.GetName(typeof(Opcodes), opcode)} ");
+                writer.Write($"{INDENT}{Enum.GetName(typeof(Opcodes), opcode).Replace("_", "").ToLower()} ");
             } else {
-                writer.Write($"{INDENT}{opcode} ");
+                writer.Write($"{INDENT}{(byte)opcode} ");
             }
         }
     }
@@ -160,13 +160,13 @@ namespace DOML.AST {
         public List<BaseNode> values = new List<BaseNode>();
 
         public override void BasicCodegen(TextWriter writer, bool simple) {
-            InstructionWriter.WriteInstructionOp(writer, Opcodes.PUSH_ARRAY, simple);
+            InstructionWriter.WriteInstructionOp(writer, Opcodes.PUSH, simple);
             // Check for onedimensional
             if (values[0] is ValueNode) {
                 string typeID = InstructionWriter.GetTypeID(((ValueNode)values[0]).obj, simple);
-                writer.WriteLine($"{typeID} {values.Count}");
-                InstructionWriter.WriteInstructionOp(writer, Opcodes.ARRAY_CPY, simple);
-                writer.Write($"{typeID} {values.Count}");
+                writer.WriteLine($"{(simple ? "vec" : "6")} {typeID} {values.Count}");
+                InstructionWriter.WriteInstructionOp(writer, Opcodes.QUICK_CPY, simple);
+                writer.Write($"{(simple ? "vec" : "6")} {typeID}");
                 foreach (BaseNode node in values) {
                     writer.Write($" {(node as ValueNode).obj}");
                 }
@@ -179,17 +179,17 @@ namespace DOML.AST {
 
         public override IEnumerable<Instruction> GetInstructions() {
             int typeID = InstructionWriter.GetTypeID(values[0]);
-            yield return new Instruction(Opcodes.PUSH_ARRAY, new object[] { typeID, values.Count });
+            yield return new Instruction(Opcodes.PUSH, new object[] { 6, typeID, values.Count });
             if (values[0] is ValueNode) {
                 // Simpler for 1D
-                object[] parameters = new object[values.Count + 100];
-                parameters[0] = typeID;
-                parameters[1] = values.Count;
+                object[] parameters = new object[values.Count + 2];
+                parameters[0] = 6;
+                parameters[1] = typeID;
 
                 for (int i = 0; i < values.Count; i++) {
                     parameters[2 + i] = ((ValueNode)values[i]).obj;
                 }
-                yield return new Instruction(Opcodes.ARRAY_CPY, parameters);
+                yield return new Instruction(Opcodes.QUICK_CPY, parameters);
             } else {
                 throw new NotImplementedException();
             }
@@ -211,16 +211,16 @@ namespace DOML.AST {
         public Dictionary<BaseNode, BaseNode> map = new Dictionary<BaseNode, BaseNode>();
 
         public override void BasicCodegen(TextWriter writer, bool simple) {
-            InstructionWriter.WriteInstructionOp(writer, Opcodes.PUSH_MAP, simple);
+            InstructionWriter.WriteInstructionOp(writer, Opcodes.PUSH, simple);
             KeyValuePair<BaseNode, BaseNode> firstkvp = map.First();
             // Optimisation if they all are value nodes
             if (firstkvp.Key is ValueNode firstKey && firstkvp.Value is ValueNode firstValue) {
                 string keyTypeID = InstructionWriter.GetTypeID(firstKey.obj, simple);
                 string valueTypeID = InstructionWriter.GetTypeID(firstValue.obj, simple);
 
-                writer.WriteLine($"{keyTypeID} {valueTypeID}");
-                InstructionWriter.WriteInstructionOp(writer, Opcodes.QUICK_SET_MAP, simple);
-                writer.Write($"{keyTypeID} {valueTypeID}");
+                writer.WriteLine($"{(simple ? "map" : "7")} {keyTypeID} {valueTypeID}");
+                InstructionWriter.WriteInstructionOp(writer, Opcodes.QUICK_CPY, simple);
+                writer.Write($"{(simple ? "map" : "7")} {keyTypeID} {valueTypeID}");
                 foreach (KeyValuePair<BaseNode, BaseNode> kvp in map) {
                     ValueNode key = (ValueNode)kvp.Key;
                     ValueNode value = (ValueNode)kvp.Value;
@@ -238,20 +238,21 @@ namespace DOML.AST {
             if (firstkvp.Key is ValueNode firstKey && firstkvp.Value is ValueNode firstValue) {
                 string keyTypeID = InstructionWriter.GetTypeID(firstKey.obj, false);
                 string valueTypeID = InstructionWriter.GetTypeID(firstValue.obj, false);
-                yield return new Instruction(Opcodes.PUSH_MAP, new object[] { keyTypeID, valueTypeID });
+                yield return new Instruction(Opcodes.PUSH, new object[] { 7, keyTypeID, valueTypeID });
 
-                object[] parameters = new object[map.Count*2 + 2];
-                parameters[0] = keyTypeID;
-                parameters[1] = valueTypeID;
+                object[] parameters = new object[map.Count*2 + 3];
+                parameters[0] = 7;
+                parameters[1] = keyTypeID;
+                parameters[2] = valueTypeID;
 
-                int i = 2;
+                int i = 3;
                 foreach (KeyValuePair<BaseNode, BaseNode> kvp in map) {
                     ValueNode key = (ValueNode)kvp.Key;
                     ValueNode value = (ValueNode)kvp.Value;
                     parameters[i++] = key.obj;
                     parameters[i++] = value.obj;
                 }
-                yield return new Instruction(Opcodes.QUICK_SET_MAP, parameters);
+                yield return new Instruction(Opcodes.QUICK_CPY, parameters);
             } else {
                 throw new NotImplementedException();
             }
@@ -286,7 +287,7 @@ namespace DOML.AST {
 
         public override IEnumerable<Instruction> GetInstructions() { yield return new Instruction(Opcodes.NOP, new object[0]); }
 
-        public override MacroNode ParseNode(TextReader reader, Parser parser) { return new DummyNode(); }
+        public override MacroNode ParseNode(Parser parser) { return new DummyNode(); }
 
         public override void Print(TextWriter writer, string indent) { }
 
@@ -294,7 +295,7 @@ namespace DOML.AST {
     }
 
     public abstract class MacroNode : BaseNode {
-        public abstract MacroNode ParseNode(TextReader reader, Parser parser);
+        public abstract MacroNode ParseNode(Parser parser);
     }
 
     public sealed class ReserveNode : BaseNode {
@@ -322,11 +323,11 @@ namespace DOML.AST {
 
         public override void BasicCodegen(TextWriter writer, bool simple) {
             InstructionWriter.WriteInstructionOp(writer, Opcodes.PUSH, simple);
-            writer.WriteLine($"{InstructionWriter.GetTypeID(obj, simple)} 1 {obj.ToString()}");
+            writer.WriteLine($"{InstructionWriter.GetTypeID(obj, simple)} {obj.ToString()}");
         }
 
         public override IEnumerable<Instruction> GetInstructions() {
-            yield return new Instruction(Opcodes.PUSH, new object[] { InstructionWriter.GetTypeID(obj, false), 1, obj });
+            yield return new Instruction(Opcodes.PUSH, new object[] { InstructionWriter.GetTypeID(obj, false), obj });
         }
 
         public override void Print(TextWriter writer, string indent) {
@@ -365,23 +366,59 @@ namespace DOML.AST {
         }
     }
 
+    public sealed class IRBlockNode : BaseNode {
+        public List<Instruction> instructions;
+
+        public override void BasicCodegen(TextWriter writer, bool simple) {
+
+        }
+
+        public override IEnumerable<Instruction> GetInstructions() {
+            foreach (Instruction instruction in instructions) {
+                yield return instruction;
+            }
+        }
+
+        public override void Print(TextWriter writer, string indent) {
+            writer.WriteLine("IR-Block");
+        }
+
+        public override bool Verify(TextWriter err) {
+            // @TODO
+            return true;
+        }
+    }
+
     public sealed class FunctionNode : BaseNode {
         public string name;
         public ObjectNode obj;
         public FunctionType type;
         public ArgumentNode[] args;
 
+        public FunctionDefinition GetDefinition() {
+            switch (type) {
+            case FunctionType.CONSTRUCTOR: return InstructionRegister.GetConstructor(obj.type + "::" + name);
+            case FunctionType.GETTER: return InstructionRegister.GetGetter(obj.type + "::" + name);
+            case FunctionType.SETTER: return InstructionRegister.GetSetter(obj.type + "::" + name);
+            default: throw new NotImplementedException();
+            }
+        }
+
         public override void BasicCodegen(TextWriter writer, bool simple) {
             // @Optimisation, check if each arg has same type to perform quick call
             foreach (ArgumentNode arg in args) {
                 arg.BasicCodegen(writer, simple);
             }
-            InstructionWriter.WriteInstructionOp(writer, Opcodes.CALL_N, simple);
-            writer.WriteLine($"{(simple ? obj.name : obj.registerIndex + "")} {obj.type} {name} {args.Length}");
+            InstructionWriter.WriteInstructionOp(writer, Opcodes.CALL, simple);
+            writer.WriteLine($"{(simple ? "#" + obj.name : obj.registerIndex.ToString())} {obj.type}::{name}");
         }
 
         public override IEnumerable<Instruction> GetInstructions() {
-            return args.SelectMany(x => x.GetInstructions());
+            foreach (Instruction instruction in args.SelectMany(x => x.GetInstructions())) {
+                yield return instruction;
+            }
+
+            yield return new Instruction(Opcodes.CALL, new object[] { GetDefinition(), obj.registerIndex });
         }
 
         public override void Print(TextWriter writer, string indent) {
@@ -401,6 +438,7 @@ namespace DOML.AST {
         public string name;
         public string type;
         public FunctionNode constructor;
+
         public int registerIndex;
 
         public override void Init(ref int registerIndex) {
@@ -414,14 +452,14 @@ namespace DOML.AST {
                 }
             }
             InstructionWriter.WriteInstructionOp(writer, Opcodes.NEW_OBJ, simple);
-            writer.WriteLine($"{type} {constructor.name} {(simple ? "#" + name : "" + registerIndex)} {constructor.args.Length}");
+            writer.WriteLine($"{(simple ? "#" + name : registerIndex.ToString())} {type}::{constructor.name}");
         }
 
         public override IEnumerable<Instruction> GetInstructions() {
             foreach (Instruction instruction in constructor.GetInstructions()) {
                 yield return instruction;
             }
-            yield return new Instruction(Opcodes.NEW_OBJ, new object[] { type, constructor.name, registerIndex, constructor.args.Length });
+            yield return new Instruction(Opcodes.NEW_OBJ, new object[] { registerIndex, constructor.GetDefinition() });
         }
 
         public override void Print(TextWriter writer, string indent) {

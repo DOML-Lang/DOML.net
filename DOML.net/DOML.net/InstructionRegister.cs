@@ -52,7 +52,7 @@ namespace DOML.IR {
         /// <summary>
         /// These represent the actions to run.
         /// </summary>
-        public readonly static Dictionary<string, FunctionDefinition> Actions;
+        public readonly static Dictionary<string, FunctionDefinition> Actions = new Dictionary<string, FunctionDefinition>();
 
         public static FunctionDefinition GetSetter(string name) => GetAction("set::" + name);
         public static void RegisterSetter(string name, Action<InterpreterRuntime, int> func, ParamType[] parameterTypes) => RegisterAction("set::" + name, func, FnType.SETTER, parameterTypes);

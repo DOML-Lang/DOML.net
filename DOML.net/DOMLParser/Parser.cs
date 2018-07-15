@@ -14,9 +14,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using DOML.IR;
-using DOML.Logger;
 using DOML.AST;
+using DOML.Logger;
 
 namespace DOML {
     /// <summary>
@@ -31,7 +30,7 @@ namespace DOML {
             BINARY_LENGTH = 1 << 3,
         }
 
-        private static Dictionary<string, Func<TextReader, Parser, MacroNode>> macros = new Dictionary<string, Func<TextReader, Parser, MacroNode>>() {
+        private static Dictionary<string, Func<Parser, MacroNode>> macros = new Dictionary<string, Func<Parser, MacroNode>>() {
             ["ir"] = new IRMacroNode().ParseNode,
             ["deinit"] = new DeinitMacroNode().ParseNode,
             ["version"] = HandleVersion,
@@ -43,30 +42,7 @@ namespace DOML {
 
         private Settings settings;
 
-        /// <summary>
-        /// Starting line used for logging purposes.
-        /// </summary>
-        private int startingLine;
-
-        /// <summary>
-        /// Starting column used for logging purposes.
-        /// </summary>
-        private int startingColumn;
-
-        /// <summary>
-        /// Current line used for logging purposes.
-        /// </summary>
-        private int currentLine;
-
-        /// <summary>
-        /// Current column used for logging purposes.
-        /// </summary>
-        private int currentColumn;
-
-        /// <summary>
-        /// Current character that has just been read.
-        /// </summary>
-        private char currentCharacter;
+        public Tokenizer tok;
 
         /// <summary>
         /// Current variable for the `...` statements.
@@ -114,19 +90,23 @@ namespace DOML {
         /// Log an error using current line information.
         /// </summary>
         /// <param name="error"> What to log. </param>
-        private void LogError(string error) => Log.Error(error, new Log.Information(startingLine, currentLine, startingColumn, currentColumn));
+        private void LogError(string error) => Log.Error(error, new Log.Information(tok.line, tok.line, tok.col, tok.col));
 
         /// <summary>
         /// Log an warning using current line information.
         /// </summary>
         /// <param name="warning"> What to log. </param>
-        private void LogWarning(string warning) => Log.Warning(warning, new Log.Information(startingLine, currentLine, startingColumn, currentColumn));
+        private void LogWarning(string warning) => Log.Warning(warning, new Log.Information(tok.line, tok.line, tok.col, tok.col));
 
         /// <summary>
         /// Log an info using current line information.
         /// </summary>
         /// <param name="info"> What to log. </param>
-        private void LogInfo(string info) => Log.Info(info, new Log.Information(startingLine, currentLine, startingColumn, currentColumn));
+        private void LogInfo(string info) => Log.Info(info, new Log.Information(tok.line, tok.line, tok.col, tok.col));
+
+        public Parser(TextReader reader) {
+            tok = new Tokenizer(reader);
+        }
 
         /// <summary>
         /// Get an interpreter from a file path.
@@ -141,16 +121,16 @@ namespace DOML {
         //        {
         //        case ReadMode.DOML:
         //            using (StreamReader reader = new StreamReader(new FileStream(filePath, FileMode.Open)))
-        //                return GetInterpreter(reader);
+        //                return GetInterpreter();
         //        case ReadMode.IR:
         //            using (StreamReader reader = new StreamReader(new FileStream(filePath, FileMode.Open)))
-        //                return GetInterpreterFromIR(reader);
+        //                return GetInterpreterFromIR();
         //        case ReadMode.BINARY_Length:
         //            using (BinaryReader reader = new BinaryReader(new FileStream(filePath, FileMode.Open)))
-        //                return GetInterpreterFromBinary(reader, true);
+        //                return GetInterpreterFromBinary(, true);
         //        case ReadMode.BINARY_Native:
         //            using (BinaryReader reader = new BinaryReader(new FileStream(filePath, FileMode.Open)))
-        //                return GetInterpreterFromBinary(reader, false);
+        //                return GetInterpreterFromBinary(, false);
         //        default:
         //            throw new NotImplementedException("Case Not Implemented; This is a bug.");
         //        }
@@ -172,9 +152,9 @@ namespace DOML {
         //        {
         //        case ReadMode.DOML:
         //            using (StringReader reader = new StringReader(text))
-        //                return GetInterpreter(reader);
+        //                return GetInterpreter();
         //        case ReadMode.IR:
-        //            using (StringReader reader = new StringReader(text)) return GetInterpreterFromIR(reader);
+        //            using (StringReader reader = new StringReader(text)) return GetInterpreterFromIR();
         //        case ReadMode.BINARY_Length:
         //            using (BinaryWriter writer = BinaryWriter.Null)
         //            {
@@ -182,7 +162,7 @@ namespace DOML {
         //                    writer.Write(Convert.ToByte(chr));
 
         //                using (BinaryReader reader = new BinaryReader(writer.BaseStream))
-        //                    return GetInterpreterFromBinary(reader, true);
+        //                    return GetInterpreterFromBinary(, true);
         //            }
         //        case ReadMode.BINARY_Native:
         //            using (BinaryWriter writer = BinaryWriter.Null)
@@ -191,7 +171,7 @@ namespace DOML {
         //                    writer.Write(Convert.ToByte(chr));
 
         //                using (BinaryReader reader = new BinaryReader(writer.BaseStream))
-        //                    return GetInterpreterFromBinary(reader, false);
+        //                    return GetInterpreterFromBinary(, false);
         //            }
         //        default:
         //            throw new NotImplementedException("Case Not Implemented; This is a bug.");
@@ -200,43 +180,20 @@ namespace DOML {
         //        throw new ArgumentNullException("Text is null");
         //}
 
-        private string AdvanceLine(TextReader reader) {
-            currentLine++;
-            currentColumn = 0;
-            return reader.ReadLine();
-        }
+        public IRBlockNode ParseIRBlock() {
 
-        private bool Advance(TextReader reader, int amount) {
-            for (; amount > 1; amount--) reader.Read();
-
-            int last = reader.Read();
-            currentCharacter = (char)last;
-
-            if (currentCharacter == '\n') {
-                currentLine++;
-                currentColumn = 0;
-            } else
-                currentColumn++;
-
-            return last >= 0;
-        }
-
-        private bool Advance(TextReader reader) {
-            return Advance(reader, 1);
         }
 
         // TopLevelNode has an error occurred flag.
-        public TopLevelNode ParseAST(TextReader reader) {
+        public TopLevelNode ParseAST() {
             List<BaseNode> children = new List<BaseNode>();
             bool success = true;
-            Advance(reader, 1);
             while (true) {
-                int oldLine = currentLine;
                 // Remove whitespace/comments before first line
-                if (!ParseComments(reader)) return null;
-                if (reader.Peek() < 0) break;
-                if (currentCharacter == '#') {
-                    MacroNode node = ParseMacro(reader);
+                if (!ParseComments()) return null;
+                if (tok.isEOF) break;
+                if (tok.currentChar == '#') {
+                    MacroNode node = ParseMacro();
                     if (node == null) {
                         Log.Error("Invalid macro");
                         success = false;
@@ -245,10 +202,10 @@ namespace DOML {
 
                     // Avoids having a lot of NOPs
                     if (!(node is DummyNode)) children.Add(node);
-                } else if (currentCharacter == '}') {
+                } else if (tok.currentChar == '}') {
                     if (inBlock) {
                         inBlock = false;
-                        Advance(reader);
+                        tok.Advance();
                         continue; // loop till next
                     } else {
                         LogError("Invalid Character '}'");
@@ -260,22 +217,18 @@ namespace DOML {
                 // Check if we are in block for objects
                 if (inBlock) {
                     // Automatic assignment
-                    FunctionNode node = ParseAssignment(reader, currentVariable);
+                    FunctionNode node = ParseAssignment(currentVariable);
                     if (node == null) {
                         success = false;
                         break;
                     }
                     children.Add(node);
                 } else {
-                    BaseNode node = ParseObjectOrAssignment(reader);
-                    if (node == null) {
-                        // Handling `obj.{ ... }`
-                        if (currentCharacter != '.' || reader.Peek() != '{' || !inBlock) {
-                            return null;
-                        } else {
-                            Advance(reader, 2);
-                        }
-                    } else if (!(node is DummyNode)) {
+                    BaseNode node = ParseObjectOrAssignment();
+                    if (node == null && !inBlock) {
+                        // @Debt: handling `.{` syntax currently requires inBlock to be false
+                        return null;
+                    } else if (node != null && !(node is DummyNode)) {
                         children.Add(node);
                     }
                 }
@@ -301,37 +254,38 @@ namespace DOML {
             return new TopLevelNode(children.ToArray(), !success, registers, maxSpaces);
         }
 
-        private static DummyNode HandleVersion(TextReader reader, Parser parser) {
+        private static DummyNode HandleVersion(Parser parser) {
             StringBuilder version = new StringBuilder();
-            parser.IgnoreWhitespace(reader);
+            parser.tok.IgnoreWhitespace();
             int digitCount = 0;
-            while (char.IsDigit(parser.currentCharacter) || parser.currentCharacter == '.') {
-                if (parser.currentCharacter == '.') digitCount++;
-                version.Append(parser.currentCharacter);
-                parser.Advance(reader);
+            while (char.IsDigit(parser.tok.currentChar) || parser.tok.currentChar == '.') {
+                if (parser.tok.currentChar == '.') digitCount++;
+                version.Append(parser.tok.currentChar);
+                parser.tok.Advance();
             }
 
-            if (!char.IsWhiteSpace(parser.currentCharacter) || digitCount > 2) {
+            if (!char.IsWhiteSpace(parser.tok.currentChar) || digitCount > 2) {
                 Log.Error("Invalid Version");
                 return null;
             }
 
             parser.version = version.ToString();
-            parser.IgnoreWhitespace(reader);
+            parser.tok.IgnoreWhitespace();
             return new DummyNode();
         }
 
-        private bool? ParseBool(TextReader reader) {
-            IgnoreWhitespace(reader);
-            string val = ParseIdentifier(reader, "", false).ToString();
-            IgnoreWhitespace(reader);
+        private bool? ParseBool() {
+            // @TODO: #true/#false
+            tok.IgnoreWhitespace();
+            string val = ParseIdentifier("", false).ToString();
+            tok.IgnoreWhitespace();
             if (val == "true") return true;
             if (val == "false") return false;
             return null;
         }
 
-        private static MacroNode HandleNoKeywords(TextReader reader, Parser parser) {
-            if (parser.ParseBool(reader) is bool val) {
+        private static MacroNode HandleNoKeywords(Parser parser) {
+            if (parser.ParseBool() is bool val) {
                 parser.noKeywords = val;
                 return new DummyNode();
             } else {
@@ -339,8 +293,8 @@ namespace DOML {
             }
         }
 
-        private static MacroNode HandleStrict(TextReader reader, Parser parser) {
-            if (parser.ParseBool(reader) is bool val) {
+        private static MacroNode HandleStrict(Parser parser) {
+            if (parser.ParseBool() is bool val) {
                 parser.strict = val;
                 return new DummyNode();
             } else {
@@ -348,42 +302,43 @@ namespace DOML {
             }
         }
 
-        private MacroNode ParseMacro(TextReader reader) {
-            if (currentCharacter != '#') {
+        private MacroNode ParseMacro() {
+            if (tok.currentChar != '#') {
                 Log.Error("Internal error");
                 return null;
             }
 
-            Advance(reader);
-            IgnoreWhitespace(reader);
+            // @ERROR. Invalid character '#'
+            if (!tok.AdvanceAndIgnoreWS()) return null;
+
             // Parse identifier
-            string identifier = ParseIdentifier(reader, "", false).ToString().ToLower();
+            string identifier = ParseIdentifier("", false).ToString().ToLower();
             if (macros.ContainsKey(identifier)) {
-                return macros[identifier](reader, this);
+                return macros[identifier](this);
             }
 
             return null;
             // Should we suggest similar names??
         }
 
-        private FunctionNode ParseAssignment(TextReader reader, ObjectNode obj, string name = null) {
+        private FunctionNode ParseAssignment(ObjectNode obj, string name = null) {
             if (name == null) {
                 // Passes obj.x = y, from the state of 'x' (post '.')
-                name = ParseIdentifier(reader, "", true).ToString();
+                name = ParseIdentifier("", true).ToString();
                 // Skip ws
-                IgnoreWhitespace(reader);
+                tok.IgnoreWhitespace();
             }
 
             // Confirm equals
-            if (currentCharacter != '=') {
+            if (tok.currentChar != '=') {
                 LogError("Missing '='");
                 return null;
             }
 
             // Now just parse the 'arg list'
-            Advance(reader);
-            IgnoreWhitespace(reader);
-            List<BaseNode> node = ParseArgList(reader);
+            // @ERROR: early eof
+            if (!tok.AdvanceAndIgnoreWS()) return null;
+            List<BaseNode> node = ParseArgList();
             if (node == null) return null;
             return new FunctionNode() { args = node.Select(x => new ArgumentNode() { name = null, value = x }).ToArray(), name = name, obj = obj, type = FunctionType.SETTER };
         }
@@ -392,15 +347,14 @@ namespace DOML {
             return (c == ';' || c == ']' || c == ',' || c == '}' || char.IsWhiteSpace(c) || c == ')');
         }
 
-        private BaseNode ParseArray(TextReader reader, ref int count) {
+        private BaseNode ParseArray(ref int count) {
             ArrayNode values = new ArrayNode();
-            while (currentCharacter != ']' && Advance(reader)) {
-                IgnoreWhitespace(reader);
-                BaseNode node = ParseValue(reader, ref count); // note: not propagating possibleFuncArg
+            while (tok.currentChar != ']' && tok.AdvanceAndIgnoreWS()) {
+                BaseNode node = ParseValue(ref count); // note: not propagating possibleFuncArg
                 if (node == null || node is ReserveNode) return null; // Error occurred
                 values.values.Add(node);
-                IgnoreWhitespace(reader);
-                if (currentCharacter != ',' && currentCharacter != ']') {
+                tok.IgnoreWhitespace();
+                if (tok.currentChar != ',' && tok.currentChar != ']') {
                     LogError("Missing ',' or ']'");
                     return null;
                 }
@@ -412,23 +366,23 @@ namespace DOML {
                 return null;
             }
 
-            if (currentCharacter != ']') {
+            if (tok.currentChar != ']') {
                 LogError("Missing ']' character.");
                 return null;
             }
 
-            Advance(reader);
+            tok.Advance();
             return values;
         }
 
         // Parses floats and integers
-        private BaseNode ParseNumber(TextReader reader, ref int count) {
+        private BaseNode ParseNumber(ref int count) {
             StringBuilder builder = new StringBuilder();
             bool flt = false;
-            while (!IsEndingChar(currentCharacter)) {
-                builder.Append(currentCharacter);
-                if (currentCharacter == '.' || currentCharacter == 'e' || currentCharacter == 'E') flt = true;
-                Advance(reader);
+            while (!IsEndingChar(tok.currentChar)) {
+                builder.Append(tok.currentChar);
+                if (tok.currentChar == '.' || tok.currentChar == 'e' || tok.currentChar == 'E') flt = true;
+                tok.Advance();
             }
 
             if (flt) {
@@ -448,32 +402,32 @@ namespace DOML {
             }
         }
 
-        private BaseNode ParseString(TextReader reader, ref int count) {
+        private BaseNode ParseString(ref int count) {
             StringBuilder builder = new StringBuilder();
             bool escaped = false;
-            while (Advance(reader) && (currentCharacter != '"' || escaped)) {
-                if (currentCharacter == '\\') {
+            while (tok.Advance() && (tok.currentChar != '"' || escaped)) {
+                if (tok.currentChar == '\\') {
                     escaped = true;
                 } else {
                     // @TODO: other escape codes like whitespace
                     escaped = false;
-                    builder.Append(currentCharacter);
+                    builder.Append(tok.currentChar);
                 }
             }
 
-            if (currentCharacter != '"' && !escaped) {
+            if (tok.currentChar != '"' && !escaped) {
                 LogError("Missing terminating '\"'");
                 return null;
             }
-            Advance(reader);
+            tok.Advance();
             return new ValueNode() { obj = builder.ToString() };
         }
 
-        private BaseNode ParseDecimal(TextReader reader, ref int count) {
-            Advance(reader); // skip '$'
+        private BaseNode ParseDecimal(ref int count) {
+            tok.Advance(); // skip '$'
             StringBuilder builder = new StringBuilder();
-            while (IsEndingChar(currentCharacter)) {
-                builder.Append(currentCharacter);
+            while (IsEndingChar(tok.currentChar)) {
+                builder.Append(tok.currentChar);
             }
 
             if (builder.Length == 0 || !decimal.TryParse(builder.ToString(), out decimal result)) {
@@ -484,68 +438,64 @@ namespace DOML {
             return new ValueNode() { obj = result };
         }
 
-        private BaseNode ParseMap(TextReader reader, ref int count) {
+        private BaseNode ParseMap(ref int count) {
             MapNode map = new MapNode();
-            while (currentCharacter != '}' && Advance(reader)) {
-                IgnoreWhitespace(reader);
-                BaseNode key = ParseValue(reader, ref count);
+            while (tok.currentChar != '}' && tok.AdvanceAndIgnoreWS()) {
+                BaseNode key = ParseValue(ref count);
                 if (key == null) return null;
 
-                IgnoreWhitespace(reader);
-                if (currentCharacter != ':') {
+                tok.IgnoreWhitespace();
+                if (tok.currentChar != ':') {
                     LogError("Expecting ':'");
                     return null;
                 }
-                Advance(reader);
-                IgnoreWhitespace(reader);
+                tok.AdvanceAndIgnoreWS();
 
-                BaseNode value = ParseValue(reader, ref count);
+                BaseNode value = ParseValue(ref count);
                 if (value == null) return null;
-                IgnoreWhitespace(reader);
-                if (currentCharacter != ',' && currentCharacter != '}') {
+                tok.IgnoreWhitespace();
+                if (tok.currentChar != ',' && tok.currentChar != '}') {
                     LogError("Expecting either ',' or '}'");
                     return null;
                 }
 
                 map.map.Add(key, value);
             }
-            if (currentCharacter != '}') {
+            if (tok.currentChar != '}') {
                 LogError("No terminating '}'");
             }
 
-            Advance(reader);
-            IgnoreWhitespace(reader);
+            tok.AdvanceAndIgnoreWS();
             return map;
         }
 
         // @TODO: refactor this more its too long
-        private BaseNode ParseObjectReference(TextReader reader, ref int count, bool possibleFuncArg = false) {
+        private BaseNode ParseObjectReference(ref int count, bool possibleFuncArg = false) {
             // @TODO: support #NoKeywords
             // Could be boolean, object or null
             // Parse till ',' ']' ')' or an invalid
-            StringBuilder identifier = ParseIdentifier(reader, "", false);
+            StringBuilder identifier = ParseIdentifier("", false);
 
-            if (currentCharacter != '.') {
-                IgnoreWhitespace(reader);
-                if (currentCharacter == ':') {
+            if (tok.currentChar != '.') {
+                tok.IgnoreWhitespace();
+                if (tok.currentChar == ':') {
                     if (possibleFuncArg) {
                         // @Query? Does count have to be reset
-                        if (currentCharacter != ':') {
+                        if (tok.currentChar != ':') {
                             LogError("Internal error expected ':'");
                             return null;
                         }
 
-                        Advance(reader);
-                        IgnoreWhitespace(reader);
+                        tok.AdvanceAndIgnoreWS();
                         // Parse actual value
-                        BaseNode val = ParseValue(reader, ref count);
+                        BaseNode val = ParseValue(ref count);
                         if (val == null) return null;
                         return new ArgumentNode() { name = identifier.ToString(), value = val };
                     } else {
                         LogError("Syntax Error");
                         return null;
                     }
-                } else if (currentCharacter == '=') {
+                } else if (tok.currentChar == '=') {
                     LogError("Syntax error");
                     return null;
                 }
@@ -571,7 +521,7 @@ namespace DOML {
                 return null;
             }
 
-            if (currentCharacter != '.') {
+            if (tok.currentChar != '.') {
                 return objValue;
             } else if (definition) {
                 LogError($"'.' operator not valid on a definition");
@@ -580,24 +530,24 @@ namespace DOML {
 
             // Get other end
             identifier.Clear();
-            Advance(reader); // skip '.'
-            while (Advance(reader)) {
-                if (char.IsLetter(currentCharacter)) {
-                    identifier.Append(currentCharacter);
+            tok.Advance(); // skip '.'
+            while (tok.Advance()) {
+                if (char.IsLetter(tok.currentChar)) {
+                    identifier.Append(tok.currentChar);
                 } else {
                     break;
                 }
             }
-            IgnoreWhitespace(reader);
+            tok.IgnoreWhitespace();
 
-            if (currentCharacter == '=') return null;
+            if (tok.currentChar == '=') return null;
 
             string funcName = identifier.ToString();
 
             List<ArgumentNode> list = new List<ArgumentNode>();
-            if (currentCharacter == '(') {
+            if (tok.currentChar == '(') {
                 // Parse function list
-                list = ParseFuncArgList(reader, ref count);
+                list = ParseFuncArgList(ref count);
                 if (list == null) {
                     return null;
                 }
@@ -606,59 +556,58 @@ namespace DOML {
             return new FunctionNode() { args = list.ToArray(), name = funcName, obj = Registers[value] };
         }
 
-        private BaseNode ParseValue(TextReader reader, ref int count, bool possibleFuncArg = false) {
+        private BaseNode ParseValue(ref int count, bool possibleFuncArg = false) {
             count++;
-            if (currentCharacter == '[') {
-                return ParseArray(reader, ref count);
-            } else if (currentCharacter == '{') {
-                return ParseMap(reader, ref count);
-            } else if (char.IsDigit(currentCharacter)) {
-                return ParseNumber(reader, ref count);
-            } else if (currentCharacter == '$') {
-                return ParseDecimal(reader, ref count);
-            } else if (currentCharacter == '"') {
-                return ParseString(reader, ref count);
+            if (tok.currentChar == '[') {
+                return ParseArray(ref count);
+            } else if (tok.currentChar == '{') {
+                return ParseMap(ref count);
+            } else if (char.IsDigit(tok.currentChar)) {
+                return ParseNumber(ref count);
+            } else if (tok.currentChar == '$') {
+                return ParseDecimal(ref count);
+            } else if (tok.currentChar == '"') {
+                return ParseString(ref count);
             } else {
-                return ParseObjectReference(reader, ref count, possibleFuncArg);
+                return ParseObjectReference(ref count, possibleFuncArg);
             }
         }
 
-        private List<ArgumentNode> ParseFuncArgList(TextReader reader, ref int count) {
-            if (currentCharacter != '(') {
+        private List<ArgumentNode> ParseFuncArgList(ref int count) {
+            if (tok.currentChar != '(') {
                 LogError("Invalid Syntax");
                 return null;
             }
 
-            Advance(reader);
+            tok.Advance();
             List<ArgumentNode> arguments = new List<ArgumentNode>();
 
-            if (currentCharacter == ')') {
+            if (tok.currentChar == ')') {
                 // Empty/void
                 return arguments;
             }
 
             do {
-                IgnoreWhitespace(reader);
-                BaseNode value = ParseValue(reader, ref count, true);
+                tok.IgnoreWhitespace();
+                BaseNode value = ParseValue(ref count, true);
                 if (value == null) return null;
                 if (value is ArgumentNode arg) arguments.Add(arg);
                 else arguments.Add(new ArgumentNode() { name = null, value = value });
-            } while (currentCharacter != ')' && currentCharacter == ',' && Advance(reader));
+            } while (tok.currentChar != ')' && tok.currentChar == ',' && tok.Advance());
 
-            if (currentCharacter != ')') {
+            if (tok.currentChar != ')') {
                 LogError("Syntax Error");
                 return null;
             }
-            Advance(reader);
+            tok.Advance();
             return arguments;
         }
 
-        private BaseNode ParseLiteralDefinition(TextReader reader, string name) {
+        private BaseNode ParseLiteralDefinition(string name) {
             // Definition
-            Advance(reader);
-            IgnoreWhitespace(reader);
+            tok.AdvanceAndIgnoreWS();
             int count = 0;
-            BaseNode value = ParseValue(reader, ref count);
+            BaseNode value = ParseValue(ref count);
             // Do we actually care about count??
             if (value == null) {
                 return null;
@@ -678,69 +627,73 @@ namespace DOML {
             return new DummyNode();
         }
 
-        private ObjectNode ParseConstructor(TextReader reader, string objName, string typeName) {
-            Advance(reader);
-            if (currentCharacter != ':') {
+        private ObjectNode ParseConstructor(string objName, string typeName) {
+            tok.Advance();
+            if (tok.currentChar != ':') {
                 LogError("Syntax error");
                 return null;
             }
 
-            Advance(reader);
+            tok.Advance();
             string functionName;
-            if (currentCharacter == '(') {
+            if (tok.currentChar == '(') {
                 // Empty
-                Advance(reader);
+                tok.Advance();
                 functionName = objName;
             } else {
-                functionName = ParseIdentifier(reader, "", false).ToString();
+                functionName = ParseIdentifier("", false).ToString();
             }
 
             int count = 0;
-            List<ArgumentNode> args = ParseFuncArgList(reader, ref count);
+            List<ArgumentNode> args = ParseFuncArgList(ref count);
             if (count > maxSpaces) maxSpaces = count;
             if (args == null) return null;
             return new ObjectNode() { name = objName, type = typeName, constructor = new FunctionNode() { name = functionName, type = FunctionType.CONSTRUCTOR, args = args.ToArray() } };
         }
 
-        private BaseNode ParseAssignment(TextReader reader, string name) {
-            // Pasre assignment
-            if (reader.Peek() == '{') {
+        // Checks `x.{` syntax
+        private bool CheckBlockSyntax(string name) {
+            if (tok.currentChar != '.') {
+                throw new InvalidOperationException("Internal Error: was expecting '.'");
+            }
+
+            tok.Advance();
+            if (tok.currentChar == '{') {
+                tok.Advance();
                 if (!Registers.ContainsKey(name)) {
                     LogError($"Object doesn't exist {name}");
+                    // @Debt: this is for the future when recursive blocks exist
+                    // Currently a 'null' is allowed when you have `.{` block
+                    // probably should be changed to another format of validation.
+                    inBlock = false;
+                    return true;
                 } else {
                     currentVariable = Registers[name];
                     inBlock = true;
-                    return null;
+                    return true;
                 }
             }
-
-            // An assignment
-            Advance(reader);
-            if (!Registers.ContainsKey(name)) {
-                LogError($"Object doesn't exist {name}");
-                return null;
-            }
-            return ParseAssignment(reader, Registers[name]);
+            return false;
         }
 
-        private BaseNode ParseObjectDefinition(TextReader reader, string name) {
-            IgnoreWhitespace(reader);
-            if (currentCharacter != ':') {
+        private BaseNode ParseObjectDefinition(string name) {
+            tok.IgnoreWhitespace();
+            if (tok.currentChar != ':') {
                 LogError("Syntax error");
                 return null;
             }
 
-            Advance(reader);
-            if (currentCharacter == '=') {
-                return ParseLiteralDefinition(reader, name);
+            tok.Advance();
+            if (tok.currentChar == '=') {
+                return ParseLiteralDefinition(name);
             }
 
-            IgnoreWhitespace(reader);
-            StringBuilder type = ParseIdentifier(reader, "", false);
+            tok.IgnoreWhitespace();
+            StringBuilder type = ParseIdentifier("", false);
             ObjectNode objectNode;
             string typeName = type.ToString();
-            if (currentCharacter == ':') {
-                objectNode = ParseConstructor(reader, name, typeName);
+            if (tok.currentChar == ':') {
+                objectNode = ParseConstructor(name, typeName);
             } else {
                 objectNode = new ObjectNode() { name = name, type = typeName, constructor = new FunctionNode() { name = typeName, type = FunctionType.CONSTRUCTOR, args = new ArgumentNode[0] } };
             }
@@ -755,56 +708,59 @@ namespace DOML {
             }
 
             Registers.Add(name, objectNode);
-            IgnoreWhitespace(reader);
-            if (currentCharacter == '{') {
+            tok.IgnoreWhitespace();
+            if (tok.currentChar == '{') {
                 inBlock = true;
                 currentVariable = objectNode;
-                Advance(reader);
+                tok.Advance();
             }
             return objectNode;
         }
 
-        private BaseNode ParseObjectOrAssignment(TextReader reader) {
+        private BaseNode ParseObjectOrAssignment() {
             // Grab name, then check ':'
-            StringBuilder name = ParseIdentifier(reader, "", false);
+            string name = ParseIdentifier("", false).ToString();
 
-            if (currentCharacter == '.') {
-                return ParseAssignment(reader, name.ToString());
+            if (tok.currentChar == '.') {
+                if (CheckBlockSyntax(name)) return null;
+                if (!Registers.ContainsKey(name)) {
+                    LogError($"Object doesn't exist {name}");
+                    return null;
+                }
+                return ParseAssignment(Registers[name]);
             } else {
-                return ParseObjectDefinition(reader, name.ToString());
+                return ParseObjectDefinition(name);
             }
         }
 
-        private List<BaseNode> ParseArgList(TextReader reader) {
+        private List<BaseNode> ParseArgList() {
             // Parse each arg, sometimes we may think there could be another node and may be wrong
             // in that case we'll handle it gracefully often emulating a parse assignment as well, thus the return type.
             // The first one will be a function node though.
             int count = 0;
             FunctionNode node = new FunctionNode();
             List<BaseNode> values = new List<BaseNode>(3);
-            BaseNode next = ParseValue(reader, ref count);
+            BaseNode next = ParseValue(ref count);
             if (next == null || next is ReserveNode) {
                 LogError("Can't have any empty arg list");
                 return null;
             }
             values.Add(next);
 
-            IgnoreWhitespace(reader);
-            if (currentCharacter == ',') {
-                Advance(reader);
+            tok.IgnoreWhitespace();
+            if (tok.currentChar == ',') {
+                tok.AdvanceAndIgnoreWS();
             } else {
                 return values;
             }
-            IgnoreWhitespace(reader);
 
             while (next != null) {
-                next = ParseValue(reader, ref count);
+                next = ParseValue(ref count);
                 if (next == null || next is ReserveNode) return null;
                 values.Add(next);
-                IgnoreWhitespace(reader);
-                if (currentCharacter != ',') break;
-                Advance(reader); // skip ','
-                IgnoreWhitespace(reader);
+                tok.IgnoreWhitespace();
+                if (tok.currentChar != ',') break;
+                tok.AdvanceAndIgnoreWS(); // skip ','
             }
 
             if (count > maxSpaces) maxSpaces = count;
@@ -812,64 +768,56 @@ namespace DOML {
             return values;
         }
 
-        private StringBuilder ParseIdentifier(TextReader reader, string prefix, bool allowDot) {
-            startingLine = currentLine;
-            startingColumn = currentColumn;
-
-            if (!char.IsLetter(currentCharacter) && currentCharacter != '_') {
+        private StringBuilder ParseIdentifier(string prefix, bool allowDot) {
+            if (!char.IsLetter(tok.currentChar) && tok.currentChar != '_') {
                 LogError("Not a valid identifier");
                 return null;
             }
 
             StringBuilder str = new StringBuilder(prefix);
-            str.Append(currentCharacter);
-            while (Advance(reader)) {
+            str.Append(tok.currentChar);
+            while (tok.Advance()) {
                 // @Query?  What symbols do we actually need to check for
-                if (currentCharacter == '=' || currentCharacter == '(' || currentCharacter == ':' || char.IsWhiteSpace(currentCharacter) || (!allowDot && currentCharacter == '.') || currentCharacter == ',') {
+                if (tok.currentChar == '=' || tok.currentChar == '(' || tok.currentChar == ':' || char.IsWhiteSpace(tok.currentChar) || (!allowDot && tok.currentChar == '.') || tok.currentChar == ',') {
                     break;
-                } else if (!char.IsLetter(currentCharacter) && currentCharacter != '_' && (allowDot && currentCharacter != '.')) {
+                } else if (!char.IsLetter(tok.currentChar) && tok.currentChar != '_' && (allowDot && tok.currentChar != '.')) {
                     // Invalid character
                     LogError("Invalid character for identifier");
                     return null;
                 }
-                str.Append(currentCharacter);
+                str.Append(tok.currentChar);
             }
             return str;
         }
 
-        private bool ParseComments(TextReader reader) {
-            if (char.IsWhiteSpace(currentCharacter) == false && currentCharacter != '/')
+        private bool ParseComments() {
+            if (char.IsWhiteSpace(tok.currentChar) == false && tok.currentChar != '/')
                 return true;
 
             int blockCommentNesting = 0;
             do {
-                if (currentCharacter == '*' && (char)reader.Peek() == '/') {
+                if (tok.currentChar == '*' && (char)tok.reader.Peek() == '/') {
                     if (blockCommentNesting == 0) {
                         LogError("Didn't start comment block");
                         return false;
                     }
 
                     blockCommentNesting--;
-                    Advance(reader); // consume '*' and begin on '/'
-                } else if (currentCharacter == '/') {
-                    char next = (char)reader.Peek();
+                    tok.Advance(); // the while loop will consume the '/'
+                } else if (tok.currentChar == '/') {
+                    char next = (char)tok.reader.Peek();
                     if (next == '*') {
-                        if (blockCommentNesting == 0) {
-                            startingLine = currentLine;
-                            startingColumn = currentColumn;
-                        }
-
                         blockCommentNesting++;
-                        Advance(reader); // consume '*'
+                        tok.Advance(); // consume '*'
                     } else if (next == '/' && blockCommentNesting == 0) {
-                        AdvanceLine(reader);
+                        tok.AdvanceLine();
                     }
-                } else if (char.IsWhiteSpace(currentCharacter) == false && blockCommentNesting == 0) {
+                } else if (char.IsWhiteSpace(tok.currentChar) == false && blockCommentNesting == 0) {
                     // We don't need to check the last condition since we know that blockCommentNesting <= 0
                     // If it is < 0 then we check that on that spot rather than towards end.
                     return true;
                 }
-            } while (Advance(reader));
+            } while (tok.Advance());
 
             if (blockCommentNesting != 0) {
                 LogError($"Didn't finish block comment");
@@ -877,12 +825,6 @@ namespace DOML {
             }
 
             return true;
-        }
-
-        internal void IgnoreWhitespace(TextReader reader) {
-            while (char.IsWhiteSpace(currentCharacter)) {
-                Advance(reader);
-            }
         }
     }
 }
@@ -897,12 +839,12 @@ namespace DOML {
 //public static Interpreter GetInterpreterFromBinary(BinaryReader reader, bool lengthMethod)
 //{
 //    if (Instructions.Count > 0) Instructions.Clear();
-//    currentCharacter = char.MinValue;
+//    tok.currentChar = char.MinValue;
 //    startingColumn = startingLine = currentLine = currentColumn = 0;
 //    byte opCode;
 //    object obj;
 
-//    while (reader.PeekChar() != -1)
+//    while (.PeekChar() != -1)
 //    {
 //        // Read Opcode
 //        opCode = reader.ReadByte();
@@ -910,9 +852,9 @@ namespace DOML {
 
 //        if (lengthMethod)
 //        {
-//            if (ParseBinaryValueUsingLength(reader, opCode, out obj) == false) return null;
+//            if (ParseBinaryValueUsingLength(opCode, out obj) == false) return null;
 //        }
-//        else if (ParseBinaryValueUsingNative(reader, opCode, out obj) == false) return null;
+//        else if (ParseBinaryValueUsingNative(, opCode, out obj) == false) return null;
 
 //        Instructions.Add(new Instruction(opCode, obj));
 //    }
@@ -941,7 +883,7 @@ namespace DOML {
 //        // OPCODE
 //        char firstDigit = currentLine[index++];
 //        int value;
-//        currentCharacter = currentLine[index];
+//        tok.currentChar = currentLine[index];
 
 //        if (char.IsDigit(firstDigit) == false)
 //        {
@@ -949,10 +891,10 @@ namespace DOML {
 //            return null;
 //        }
 
-//        if (char.IsDigit(currentCharacter))
+//        if (char.IsDigit(tok.currentChar))
 //        {
 //            // Two Digits
-//            value = (firstDigit == '1' ? 10 : 0) + currentCharacter - '0'; // Since the maximum value is 18 so far, we can just do this, and save a multiplication
+//            value = (firstDigit == '1' ? 10 : 0) + tok.currentChar - '0'; // Since the maximum value is 18 so far, we can just do this, and save a multiplication
 //            ++index;
 //        }
 //        else
@@ -983,9 +925,9 @@ namespace DOML {
 
 //        do
 //        {
-//            currentCharacter = currentLine[index];
-//            if (((char.IsWhiteSpace(currentCharacter) || currentCharacter == ',') && quoted == false) || index >= currentLine.Length) break;
-//            if (currentCharacter == '"') quoted = !quoted;
+//            tok.currentChar = currentLine[index];
+//            if (((char.IsWhiteSpace(tok.currentChar) || tok.currentChar == ',') && quoted == false) || index >= currentLine.Length) break;
+//            if (tok.currentChar == '"') quoted = !quoted;
 //            index++;
 //        }
 //        while (true);
@@ -1037,7 +979,7 @@ namespace DOML {
 //public static Interpreter GetInterpreter(TextReader reader)
 //{
 //    if (Instructions.Count > 0) Instructions.Clear();
-//    currentCharacter = char.MinValue;
+//    tok.currentChar = char.MinValue;
 //    startingColumn = startingLine = currentLine = currentColumn = 0;
 
 //    if (Registers.Count > 0) Registers.Clear();
@@ -1048,35 +990,35 @@ namespace DOML {
 //    Instructions.Add(new Instruction()); // To be set at the end - ReserveSpace
 //    Instructions.Add(new Instruction()); // To be set at the end - ReserveRegisters
 
-//    AdvanceOnce(reader); // Kickstart
+//    AdvanceOnce(); // Kickstart
 
 //    while (true)
 //    {
 //        int oldLine = currentLine;
 
 //        // Remove whitespace/comments before first line
-//        if (!ParseComments(reader)) return null;
+//        if (!ParseComments()) return null;
 
 //        // If we at end of line then just return the interpreter instance
-//        if (reader.Peek() < 0)
+//        if (.Peek() < 0)
 //            break;
 
-//        if (currentCharacter == '@')
+//        if (tok.currentChar == '@')
 //        {
-//            if (ParseCreationStatement(reader) == false)
+//            if (ParseCreationStatement() == false)
 //                return null;
 //        }
-//        else if (currentCharacter == ';' || oldLine != currentLine || goToStatement)
+//        else if (tok.currentChar == ';' || oldLine != currentLine || goToStatement)
 //        {
 //            goToStatement = false;
-//            if (ParseSetStatement(reader) == false)
+//            if (ParseSetStatement() == false)
 //                return null;
 //        }
 //        else
 //        {
 //            // Something went wrong in remove white space or similar so just return null
 //            // It could also be just a syntax error that they have initiated
-//            LogError("Invalid character " + currentCharacter);
+//            LogError("Invalid character " + tok.currentChar);
 //            return null;
 //        }
 //    }

@@ -33,6 +33,13 @@ namespace Test.UnitTests {
         public byte R, G, B;
         public string Name;
 
+        public Color() { }
+
+        [DOMLCustomise("Normalized")]
+        public Color(float R, float G, float B) {
+            Normalized(R, G, B);
+        }
+
         public void RGB(int R, int G, int B) {
             this.R = (byte)R;
             this.G = (byte)G;
@@ -69,8 +76,6 @@ namespace Test.UnitTests {
         public AllTests() {
             //DOMLBindings.LinkBindings();
             Log.HandleLogs = false;
-
-            parser = new Parser();
 
             //StringBuilder comments = new StringBuilder(), noComments = new StringBuilder();
 
@@ -117,7 +122,7 @@ namespace Test.UnitTests {
             CreateBindings.Create<Color>();
             CreateBindings.CreateFinalFile();
 
-            //DOML.LinkBindings();
+            DOMLBindings.LinkBindings();
             Console.SetWindowSize((int)(Console.LargestWindowWidth / 1.5f), (int)(Console.LargestWindowHeight / 1.5f));
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             using (StreamReader reader = new StreamReader(File.OpenRead("test.doml"))) {
@@ -127,7 +132,7 @@ namespace Test.UnitTests {
                     c = reader.Read();
                 }
             }
-            TopLevelNode topLevel = new Parser().ParseAST(new StreamReader(File.OpenRead("test.doml")));
+            TopLevelNode topLevel = new Parser(new StreamReader(File.OpenRead("test.doml"))).ParseAST();
 
             topLevel.BasicCodegen(Console.Out, false);
             topLevel.BasicCodegen(Console.Out, true);
@@ -140,6 +145,19 @@ namespace Test.UnitTests {
             }
 
             topLevel.Print(Console.Out);
+            using (TextWriter writer = new StreamWriter(File.OpenWrite(Directory.GetCurrentDirectory() + "/Output.IR"))) {
+                topLevel.BasicCodegen(writer, true);
+            }
+            using (TextWriter writer = new StreamWriter(File.OpenWrite(Directory.GetCurrentDirectory() + "/CompactOutput.IR"))) {
+                topLevel.BasicCodegen(writer, false);
+            }
+
+            int count = 0;
+            Console.WriteLine(Interpreter.CreateType(new ParamType[] { ParamType.VEC, ParamType.INT }.GetEnumerator(), ref count));
+            Console.WriteLine(Interpreter.CreateType(new ParamType[] { ParamType.MAP, ParamType.VEC, ParamType.FLT, ParamType.STR }.GetEnumerator(), ref count));
+            Console.WriteLine(Interpreter.CreateType(new ParamType[] { ParamType.MAP, ParamType.FLT, ParamType.STR }.GetEnumerator(), ref count));
+            Console.WriteLine(Interpreter.CreateType(new ParamType[] { ParamType.MAP, ParamType.VEC, ParamType.BOOL, ParamType.MAP, ParamType.OBJ, ParamType.VEC, ParamType.FLT }.GetEnumerator(), ref count));
+
             Console.Read();
             return;
 #if BenchmarkDotNet

@@ -32,7 +32,7 @@ namespace StaticBindings {
     /// <summary>
     /// Use this to customise a property/field/method (not constructor)/class/struct when used by DOML.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method | AttributeTargets.Class | AttributeTargets.Struct | ~AttributeTargets.Constructor, AllowMultiple = false, Inherited = true)]
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method | AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Constructor, AllowMultiple = false, Inherited = true)]
     public class DOMLCustomiseAttribute : Attribute {
         /// <summary>
         /// The name to expose.
